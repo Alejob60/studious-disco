@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens for the "Dark & Gold" system.
+ * Keeping them here (instead of a tailwind.config.js) is the Tailwind v4 way:
+ * every token below is automatically exposed as a utility, e.g. `bg-surface`,
+ * `text-gold`, `border-line`.
+ */
+@theme {
+  /* Surfaces */
+  --color-ink: #050505;
+  --color-surface: #161616;
+  --color-surface-2: #1e1e1e;
+
+  /* Text */
+  --color-body: #a1a1aa;
+
+  /* Gold accent */
+  --color-gold: #d4af37;
+  --color-gold-light: #f3e5ab;
+  --color-gold-dark: #8f7420;
+
+  /* AWS badge */
+  --color-aws: #2ecc71;
+  --color-aws-bg: #052e1b;
+
+  /* Borders */
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Playfair Display', ui-serif, Georgia, 'Times New Roman', serif;
+
+  --animate-pulse-gold: pulse-gold 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-gold {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(212 175 55 / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgb(212 175 55 / 0);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: #fff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Ambient gold glow anchored to the top of the page. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60rem 40rem at 50% -10%, rgb(212 175 55 / 0.12), transparent 60%),
+    radial-gradient(40rem 30rem at 85% 5%, rgb(212 175 55 / 0.06), transparent 60%);
+}
+
+::selection {
+  background: var(--color-gold);
+  color: #000;
+}
+
+/* Thin gold scrollbar to match the palette. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold-dark) transparent;
+}
