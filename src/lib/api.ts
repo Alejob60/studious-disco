@@ -86,6 +86,7 @@ export async function fetchForecast(signal?: AbortSignal): Promise<ForecastRespo
 export async function sendChatMessage(
   message: string,
   history: { role: string; content: string }[],
+  locale = 'es',
   signal?: AbortSignal,
 ): Promise<ChatResponse> {
   if (!API_URL) throw new Error('VITE_API_URL is not set')
@@ -93,7 +94,7 @@ export async function sendChatMessage(
   const response = await fetch(`${API_URL}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, locale }),
     signal,
   })
 

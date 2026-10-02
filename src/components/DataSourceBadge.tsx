@@ -1,6 +1,7 @@
 import { motion } from 'motion/react'
 import { CloudOff, Radio, RefreshCw } from 'lucide-react'
 import type { ForecastSource } from '../lib/api'
+import { useI18n } from '../i18n/I18nProvider'
 
 /**
  * Tells the viewer whether the numbers on screen came from the live AWS stack.
@@ -17,11 +18,13 @@ export function DataSourceBadge({
   loading: boolean
   warning: string | null
 }) {
+  const { t } = useI18n()
+
   if (loading) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[11px] text-body">
         <RefreshCw className="size-3 animate-spin" />
-        Consultando la API
+        {t('hero.loading')}
       </span>
     )
   }
@@ -35,7 +38,7 @@ export function DataSourceBadge({
         className="inline-flex items-center gap-1.5 rounded-full border border-aws/30 bg-aws-bg px-3 py-1.5 text-[11px] font-medium text-aws"
       >
         <Radio className="size-3" strokeWidth={2.5} />
-        Datos en vivo · AWS
+        {t('hero.live')}
       </motion.span>
     )
   }
@@ -48,7 +51,7 @@ export function DataSourceBadge({
       className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1.5 text-[11px] font-medium text-gold"
     >
       <CloudOff className="size-3" strokeWidth={2.5} />
-      Modo demostración
+      {t('hero.demo')}
     </motion.span>
   )
 }

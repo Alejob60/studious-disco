@@ -24,6 +24,31 @@ Parameters:
     Description: >
       Underlying foundation model ID (no cross-region prefix). Needed in IAM
       because cross-region inference also authorises against the base model.
+  ResendSecretName:
+    Type: String
+    Default: atelier-predict/lead-resend
+    Description: >
+      Secrets Manager secret holding RESEND_API_KEY. Created by
+      infra/sync-resend-secret.ps1. The Lambda reads it at runtime, so the key
+      never appears in the function configuration.
+  LeadNotificationEmail:
+    Type: String
+    Default: enterprise@colombiatic.com.co
+    Description: Where internal lead notifications are delivered.
+  LeadFromEmail:
+    Type: String
+    Default: ColombiaTIC <onboarding@colombiatic.com.co>
+    Description: Resend verified sender address.
+  LeadSourceTag:
+    Type: String
+    Default: atelier-predict-hackathon
+    Description: Tag that identifies leads as coming from the hackathon landing.
+  CrmApiBase:
+    Type: String
+    Default: ''
+    Description: >
+      Optional base URL (without /demo-leads) for secondary lead persistence.
+      Left empty the lead is still delivered by email.
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -201,6 +226,89 @@ Resources:
       Target: !Sub 'integrations/${AgentIntegration}'
 
   # ---------------------------------------------------------------------------
+  # Lead function: hackathon contact form, Resend via Secrets Manager.
+  # ---------------------------------------------------------------------------
+  LeadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/atelier-predict-lead'
+      RetentionInDays: 14
+
+  LeadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: Execution role for the lead Lambda (logs plus one secret read).
+      Policies:
+        - PolicyName: read-resend-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadOnlyResendKey
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                # Scoped to the single lead secret, and only the current version.
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResendSecretName}*'
+
+  LeadFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: atelier-predict-lead
+      Runtime: nodejs22.x
+      Handler: lead/index.handler
+      Role: !GetAtt LeadRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref CodeKey
+      Timeout: 25
+      MemorySize: 512
+      Description: Hackathon lead capture with dual Resend delivery.
+      Environment:
+        Variables:
+          LEAD_RESEND_SECRET_ID: !Ref ResendSecretName
+          LEAD_NOTIFICATION_EMAIL: !Ref LeadNotificationEmail
+          LEAD_FROM_EMAIL: !Ref LeadFromEmail
+          LEAD_SOURCE_TAG: !Ref LeadSourceTag
+          CRM_API_BASE: !Ref CrmApiBase
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+
+  LeadIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt LeadFunction.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 25000
+
+  LeadRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: POST /lead
+      Target: !Sub 'integrations/${LeadIntegration}'
+
+  LeadInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LeadFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+  # ---------------------------------------------------------------------------
   # API Gateway is allowed to invoke both functions, and nothing else.
   # ---------------------------------------------------------------------------
   ForecastInvokePermission:
@@ -230,6 +338,9 @@ Outputs:
   ChatEndpoint:
     Description: POST a message to the Bedrock-backed agent.
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/chat'
+  LeadEndpoint:
+    Description: POST a hackathon lead; notifies enterprise@colombiatic.com.co via Resend.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/lead'
   ForecastFunctionArn:
     Description: ARN of the forecast Lambda.
     Value: !GetAtt ForecastFunction.Arn

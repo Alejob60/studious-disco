@@ -4,9 +4,11 @@ import { Reveal } from './ui/Reveal'
 import { useCountUp } from '../lib/useCountUp'
 import { formatDelta, formatNumber } from '../lib/format'
 import type { DisplayKpi } from '../lib/forecast-view'
+import { useI18n } from '../i18n/I18nProvider'
 
 /** One KPI tile. Isolated so the count-up animation owns a single ref. */
 function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
+  const { t } = useI18n()
   const reduceMotion = useReducedMotion()
   const { ref, value } = useCountUp(kpi.value, kpi.decimals)
 
@@ -54,10 +56,10 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
         >
           <TrendIcon className="size-3.5" strokeWidth={2.5} />
           {formatDelta(kpi.delta!, Number.isInteger(kpi.delta) ? 0 : 2)}
-          <span className="text-body">vs. semana actual</span>
+          <span className="text-body">{t('kpis.vsWeek')}</span>
         </p>
       ) : (
-        <p className="relative mt-3 text-xs text-white/35">{kpi.hint}</p>
+        <p className="relative mt-3 text-xs leading-relaxed text-white/45">{kpi.hint}</p>
       )}
     </motion.article>
   )
@@ -65,13 +67,15 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
 
 /** The three headline metrics directly under the hero. */
 export function KpiCards({ kpis }: { kpis: DisplayKpi[] }) {
+  const { t } = useI18n()
+
   return (
     <section id="kpis" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <Reveal className="mb-6 flex items-end justify-between gap-4">
+      <Reveal className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-body">
-          Indicadores clave
+          {t('kpis.title')}
         </h2>
-        <span className="text-xs text-white/30">Modelo: Holt-Winters estacional · período 7 días</span>
+        <span className="text-xs text-white/30">{t('kpis.model')}</span>
       </Reveal>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

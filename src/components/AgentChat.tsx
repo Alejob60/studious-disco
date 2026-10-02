@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bot, Send, Sparkles, User } from 'lucide-react'
-import { INITIAL_MESSAGES, SCRIPTED_REPLIES, type ChatMessage } from '../data/mock'
+import type { ChatMessage } from '../data/mock'
 import { isApiConfigured, sendChatMessage, type AgentAction } from '../lib/api'
 import { Reveal } from './ui/Reveal'
+import { useI18n } from '../i18n/I18nProvider'
 
 type Turn = { role: string; content: string }
 
@@ -11,7 +12,7 @@ type Turn = { role: string; content: string }
  * Converts an executed tool call into the metadata chip shown under the bubble,
  * so the agent's actions are visible instead of only claimed in prose.
  */
-function describeAction(action: AgentAction): string {
+function describeAction(action: AgentAction, t: (key: string, vars?: Record<string, string | number>) => string): string {
   if (action.name === 'activate_campaign') {
     const channel = String(action.input.channel ?? 'whatsapp')
     const label = channel === 'whatsapp' ? 'WhatsApp' : channel.toUpperCase()
@@ -19,18 +20,18 @@ function describeAction(action: AgentAction): string {
     const revenue = action.input.expectedRevenueCop
 
     const extras = [
-      audience ? `${Number(audience).toLocaleString('es-CO')} contactos` : null,
+      audience ? `${Number(audience).toLocaleString('es-CO')} ${t('chat.contacts')}` : null,
       revenue ? `$${Number(revenue).toLocaleString('es-CO')} COP` : null,
     ].filter(Boolean)
 
-    return `Campaña activada · ${label}${extras.length ? ` · ${extras.join(' · ')}` : ''}`
+    return `${t('chat.actionCampaign')} · ${label}${extras.length ? ` · ${extras.join(' · ')}` : ''}`
   }
 
   if (action.name === 'adjust_reorder_point') {
-    return `Punto de reposición ajustado · ${action.input.sku ?? 'SKU'} → ${action.input.newUnits ?? '?'} unid.`
+    return `${t('chat.actionReorder')} · ${action.input.sku ?? 'SKU'} → ${action.input.newUnits ?? '?'} ${t('chat.skuSuffix')}`
   }
 
-  return `Acción ejecutada · ${action.name}`
+  return `${t('chat.actionExecuted')} · ${action.name}`
 }
 
 /**
@@ -40,14 +41,34 @@ function describeAction(action: AgentAction): string {
  * falls back to canned replies when it is not, so the demo still works offline.
  */
 export function AgentChat({ live }: { live: boolean }) {
+  const { t, dict, locale } = useI18n()
   const reduceMotion = useReducedMotion()
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES)
+
+  const initialMessages = useMemo<ChatMessage[]>(
+    () =>
+      dict.chat.initial.map((message, index) => ({
+        id: index + 1,
+        role: message.role as ChatMessage['role'],
+        text: message.text,
+        meta: message.meta,
+      })),
+    [dict],
+  )
+
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const replyCount = useRef(0)
-  const nextId = useRef(INITIAL_MESSAGES.length + 1)
+  const nextId = useRef(100)
+
+  // Reset the transcript when the language changes so the demo stays coherent.
+  useEffect(() => {
+    setMessages(initialMessages)
+    setNotice(null)
+    nextId.current = 100
+  }, [initialMessages])
 
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
@@ -75,11 +96,11 @@ export function AgentChat({ live }: { live: boolean }) {
     if (!isApiConfigured) {
       // Local fallback so the panel is still usable with no API configured.
       window.setTimeout(() => {
-        const reply = SCRIPTED_REPLIES[replyCount.current % SCRIPTED_REPLIES.length]
+        const reply = dict.chat.replies[replyCount.current % dict.chat.replies.length]
         replyCount.current += 1
         setMessages((prev) => [
           ...prev,
-          { id: nextId.current++, role: 'agent', text: reply, meta: 'Respuesta local · sin API' },
+          { id: nextId.current++, role: 'agent', text: reply, meta: t('chat.demoReplyNote') },
         ])
         setThinking(false)
       }, 700)
@@ -87,10 +108,10 @@ export function AgentChat({ live }: { live: boolean }) {
     }
 
     try {
-      const result = await sendChatMessage(text, history)
+      const result = await sendChatMessage(text, history, locale)
       const actionNote = result.actions?.length
-        ? describeAction(result.actions[0])
-        : 'Contexto compartido desde el pronóstico'
+        ? describeAction(result.actions[0], t)
+        : t('chat.online')
 
       setMessages((prev) => [
         ...prev,
@@ -98,11 +119,11 @@ export function AgentChat({ live }: { live: boolean }) {
       ])
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'error desconocido'
-      const reply = SCRIPTED_REPLIES[replyCount.current % SCRIPTED_REPLIES.length]
+      const reply = dict.chat.replies[replyCount.current % dict.chat.replies.length]
       replyCount.current += 1
       setMessages((prev) => [
         ...prev,
-        { id: nextId.current++, role: 'agent', text: reply, meta: 'Respuesta local · API no disponible' },
+        { id: nextId.current++, role: 'agent', text: reply, meta: t('chat.fallbackNote') },
       ])
       setNotice(`No se pudo contactar al agente (${detail}). Se muestra una respuesta de demostración.`)
     } finally {
@@ -115,10 +136,10 @@ export function AgentChat({ live }: { live: boolean }) {
       <Reveal className="mb-6">
         <h2 className="flex items-center gap-2 text-xl font-semibold text-white sm:text-2xl">
           <Sparkles className="size-5 text-gold" strokeWidth={2} />
-          Agente de decisión
+{t('chat.badge')}
         </h2>
         <p className="mt-1.5 text-sm text-body">
-          Del pronóstico a la acción: el agente no solo predice, ejecuta.
+          {t('chat.subtitle')}
         </p>
       </Reveal>
 
@@ -132,7 +153,7 @@ export function AgentChat({ live }: { live: boolean }) {
             </span>
             <p className="text-sm font-medium text-white">agente.demanda</p>
             <span className="ml-auto text-xs text-body">
-              {live ? 'En línea · Claude en Bedrock' : 'Sin conexión · respuestas locales'}
+              {live ? t('chat.online') : t('chat.offline')}
             </span>
           </div>
 
@@ -218,7 +239,7 @@ export function AgentChat({ live }: { live: boolean }) {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') void send()
                 }}
-                placeholder="Escribe una instrucción al agente..."
+                placeholder={t('chat.placeholder')}
                 aria-label="Instrucción para el agente"
                 className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/30 focus:outline-none"
               />
@@ -234,7 +255,7 @@ export function AgentChat({ live }: { live: boolean }) {
               </motion.button>
             </div>
             <p className="mt-2 px-1 text-[11px] text-white/25">
-              Enter para enviar · El agente responde con Claude (Amazon Bedrock) sobre el pronóstico.
+              {t('chat.hint')}
             </p>
           </div>
         </div>
@@ -242,3 +263,4 @@ export function AgentChat({ live }: { live: boolean }) {
     </section>
   )
 }
+

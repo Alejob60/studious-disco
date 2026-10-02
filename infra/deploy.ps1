@@ -19,6 +19,11 @@ param(
   [string]$ArtifactBucket = 'atelier-predict-artifacts-409514059726',
   [string]$ModelId = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
   [string]$FoundationModelId = 'anthropic.claude-sonnet-4-5-20250929-v1:0',
+  [string]$ResendSecretName = 'atelier-predict/lead-resend',
+  [string]$LeadNotificationEmail = 'enterprise@colombiatic.com.co',
+  [string]$LeadFromEmail = 'ColombiaTIC <onboarding@colombiatic.com.co>',
+  [string]$LeadSourceTag = 'atelier-predict-hackathon',
+  [string]$CrmApiBase = '',
   [switch]$SkipDeploy
 )
 
@@ -44,6 +49,7 @@ New-Item -ItemType Directory -Path $stagingDir | Out-Null
 Copy-Item -Recurse -Path (Join-Path $backendDir 'shared') -Destination $stagingDir
 Copy-Item -Recurse -Path (Join-Path $backendDir 'forecast') -Destination $stagingDir
 Copy-Item -Recurse -Path (Join-Path $backendDir 'agent') -Destination $stagingDir
+Copy-Item -Recurse -Path (Join-Path $backendDir 'lead') -Destination $stagingDir
 
 # node_modules belongs at the bundle root so that forecast/index.js and
 # agent/index.js can both resolve it without nesting it inside one of them.
@@ -112,7 +118,12 @@ $paramList = @(
   "ParameterKey=ArtifactBucket,ParameterValue=$ArtifactBucket",
   "ParameterKey=CodeKey,ParameterValue=$codeKey",
   "ParameterKey=BedrockModelId,ParameterValue=$ModelId",
-  "ParameterKey=BedrockFoundationModelId,ParameterValue=$FoundationModelId"
+  "ParameterKey=BedrockFoundationModelId,ParameterValue=$FoundationModelId",
+  "ParameterKey=ResendSecretName,ParameterValue=$ResendSecretName",
+  "ParameterKey=LeadNotificationEmail,ParameterValue=$LeadNotificationEmail",
+  "ParameterKey=LeadFromEmail,ParameterValue=$LeadFromEmail",
+  "ParameterKey=LeadSourceTag,ParameterValue=$LeadSourceTag",
+  "ParameterKey=CrmApiBase,ParameterValue=$CrmApiBase"
 )
 
 $stackExists = (aws cloudformation describe-stacks @awsArgs --stack-name $StackName --query 'Stacks[0].StackId' --output text 2>$null)
@@ -130,8 +141,15 @@ aws cloudformation create-change-set @awsArgs `
   --parameters $paramList 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Could not create the CloudFormation change set." }
 
-$changeSetStatus = aws cloudformation describe-change-set @awsArgs --stack-name $StackName `
-  --change-set-name $changeSetName --query 'Status' --output text 2>$null
+# The change set reports CREATE_IN_PROGRESS for a few seconds before settling, so
+# poll instead of judging the first response.
+$changeSetStatus = 'PENDING'
+$changeDeadline = (Get-Date).AddMinutes(5)
+while ($changeSetStatus -match 'PENDING|IN_PROGRESS' -and (Get-Date) -lt $changeDeadline) {
+  $changeSetStatus = aws cloudformation describe-change-set @awsArgs --stack-name $StackName `
+    --change-set-name $changeSetName --query 'Status' --output text 2>$null
+  if ($changeSetStatus -match 'IN_PROGRESS') { Start-Sleep -Seconds 3 }
+}
 
 if ($changeSetStatus -ne 'CREATE_COMPLETE') {
   Write-Host "    change set status: $changeSetStatus" -ForegroundColor Red

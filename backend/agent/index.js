@@ -91,8 +91,9 @@ async function handler(event) {
     }
 
     const history = Array.isArray(body.history) ? body.history.slice(-MAX_TURNS) : []
+    const locale = clean(body.locale, 8) === 'en' ? 'en' : 'es'
     const report = buildForecastReport(buildSyntheticHistory())
-    const systemText = buildSystemPrompt(report)
+    const systemText = buildSystemPrompt(report, locale)
 
     const conversation = [
       ...history.map(normaliseTurn).filter(Boolean),
@@ -135,6 +136,7 @@ async function handler(event) {
       actions,
       context: summariseContext(report),
       model: MODEL_ID,
+      locale,
       usage: {
         inputTokens: usage.inputTokens ?? 0,
         outputTokens: usage.outputTokens ?? 0,
@@ -228,7 +230,7 @@ Tu trabajo no es solo responder: es traducir un pronóstico en acciones concreta
 
 Reglas:
 - Los únicos datos de demanda que puedes citar son los del CONTEXTO FORECAST. Nunca inventes cifras, fechas ni porcentajes.
-- Responde siempre en español colombiano, tono profesional y directo. Máximo 4 frases.
+- Responde en el idioma que indica IDIOMA_DESEADO, con tono profesional y directo. Máximo 4 frases.
 - Cuando el usuario dé luz verde para activar una campaña, llama a la herramienta activate_campaign con el canal y el día del pico.
 - Si el objetivo es inventario o stock, usa adjust_reorder_point.
 - Cierra con una cifra concreta de impacto (unidades o pesos colombianos).
@@ -240,7 +242,7 @@ Reglas:
  * This is the important bit: the demand numbers come from Holt-Winters, not
  * from the LLM. The model narrates and acts; it never invents the forecast.
  */
-function buildSystemPrompt(report) {
+function buildSystemPrompt(report, locale) {
   const context = {
     modelo: report.model,
     demandaProximos7Dias: report.kpis.weekAheadUnits,
@@ -256,7 +258,14 @@ function buildSystemPrompt(report) {
     })),
   }
 
+  const language =
+    locale === 'en'
+      ? 'English. Use COP amounts and the es-CO number format for currency.'
+      : 'español colombiano.'
+
   return `${SYSTEM_PROMPT}
+
+IDIOMA_DESEADO: ${language}
 
 CONTEXTO FORECAST (única fuente de verdad, generado por ${report.model}):
 ${JSON.stringify(context, null, 2)}`

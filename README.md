@@ -47,10 +47,30 @@ atelier-predict-forecast    atelier-predict-agent
 | Styling         | Tailwind CSS v4 (CSS-first `@theme` tokens)         |
 | Charts          | Recharts 3, split into a lazy chunk                 |
 | Animation       | Motion 13 (`motion/react`)                          |
+| Routing + i18n  | react-router-dom with `/es` and `/en`, custom `t()`  |
 | Model           | Additive Holt-Winters, weekly seasonality (m=7)     |
 | LLM             | Claude Sonnet 4.5 via `us.` cross-region profile    |
+| Email           | Resend HTTP API, key in AWS Secrets Manager          |
 | IaC             | Plain CloudFormation (`infra/template.yaml`)        |
 | Auth            | None — see [Security](#security-debt)               |
+
+## Internationalisation
+
+Every user-facing string comes from `src/i18n/dictionaries.ts`; no component
+hardcodes copy. `t('hero.titleLead', { token })` interpolates `{token}`.
+
+- Routes are locale-prefixed: `/es`, `/en`, plus the legal pages
+  (`/es/privacidad`, `/en/privacy`, …). `/` redirects to `/es`.
+- The language switcher swaps the first path segment and keeps the current page.
+- The agent Lambda receives the locale and answers in the same language.
+- `<html lang>` is kept in sync for screen readers.
+
+### Languages
+
+| Locale | Path                 | Notes                                  |
+| ------ | -------------------- | -------------------------------------- |
+| `es`   | `/es`                | Default. Colombian Spanish, COP amounts |
+| `en`   | `/en`                | English, same layout                   |
 
 ## Getting started
 
@@ -84,10 +104,11 @@ Deploy (no SAM or CDK CLI required):
 The script stages the handlers, bundles `node_modules`, uploads to S3 and applies
 the stack through a change set. It prints the API URL when done.
 
-| Endpoint    | Purpose                                                    |
-| ----------- | ---------------------------------------------------------- |
+| Endpoint     | Purpose                                                    |
+| ------------ | ---------------------------------------------------------- |
 | `GET /forecast` | Holt-Winters projection, 95 % bands, and the backtest   |
 | `POST /chat`    | Claude over that forecast, with tool use               |
+| `POST /lead`    | Hackathon contact form; notifies the team via Resend    |
 
 `POST /forecast` also accepts `{"history": [ ... ]}` to run the model against a
 real POS export instead of the synthetic demo history.
@@ -102,14 +123,25 @@ src/
     KpiCards.tsx         3 headline metrics with count-up animation
     ForecastChart.tsx    real vs. predicted area chart (lazy loaded)
     AgentChat.tsx        Bedrock conversation, falls back to canned replies
+    ContactForm.tsx      hackathon lead form, honeypot + validation
     DataSourceBadge.tsx  "Datos en vivo · AWS" vs "Modo demostración"
-    Footer.tsx           hackathon attribution
+    Footer.tsx           legal links + hackathon attribution
+    legal/CookieConsent.tsx  consent banner (accept all / essential only)
     ui/                  Reveal (scroll entrance), ChartSkeleton
+  content/
+    legal.ts             the four policy bodies, es + en
+    legal-meta.ts        slugs and labels only (keeps the bundle small)
+  i18n/
+    dictionaries.ts      all UI copy, es + en
+    I18nProvider.tsx     t(key, vars) hook, {token} interpolation
+    LanguageSwitcher.tsx  swaps the leading path segment
   lib/
     api.ts               typed client + response contracts
     useForecast.ts       load with mock fallback
     forecast-view.ts     API payload -> chart points and KPIs
   data/mock.ts           mock history + buildMockForecast()
+  pages/
+    LegalPage.tsx        renders one policy (lazy loaded)
 ```
 
 There is a single rendering path: mock and live data have the same shape, so the
@@ -150,6 +182,54 @@ Runtime:         Node.js 22
 No environment variables needed in Amplify: `VITE_API_URL` is committed in
 `.env.production`. To point at a different API, set `VITE_API_URL` as an
 Amplify environment variable instead and delete that file.
+
+### Required: SPA rewrites for the i18n routes
+
+The app uses locale-prefixed client routes (`/es`, `/en`, `/en/terms`). Without a
+rewrite, refreshing `/en` returns Amplify's 404 page instead of the app. In the
+Amplify console open **Hosting → Rewrites and redirects**, enable custom rules,
+clear the default rule and paste `infra/amplify-rewrites.json`:
+
+```json
+[
+  { "source": "/<*>", "target": "/index.html", "conditions": [] }
+]
+```
+
+Save and redeploy. Until this is in place the root `/` still works and the
+language switcher works in-app (client-side navigation), so the demo is not
+blocked — only deep links and refreshes are affected.
+
+## Legal pages
+
+`/privacidad`, `/terminos`, `/cookies`, `/reembolsos` (and their English
+counterparts) render from `src/content/legal.ts`, which holds the four policies
+in both languages.
+
+> These are **reference drafts written for this MVP, not legal advice.** They
+> follow the structure Colombian law expects — Ley 1581 de 2012 on personal data
+> protection, and the distance-sales withdrawal right in Decreto 1074 de 2015 —
+> but they must be reviewed by a lawyer before being published as binding policy.
+> The pages say so on screen.
+
+## Contact form and Resend
+
+The form posts to `POST /lead` on our own API. The Resend key lives in AWS
+Secrets Manager (`atelier-predict/lead-resend`) and is fetched at runtime, so it
+never appears in the Lambda configuration or the template.
+
+```powershell
+./infra/sync-resend-secret.ps1    # once, copies the key from the ColombiaTIC env
+./infra/deploy.ps1
+```
+
+Lead notifications go to `enterprise@colombiatic.com.co` with the subject
+`Nuevo lead desde Atelier Predict (hackathon) — <empresa>` and a body row
+`Origen: atelier-predict-hackathon`, so hackathon leads are distinguishable from
+the colombiatic.com.co landing. The submitter also receives a confirmation.
+
+The pipeline mirrors the ColombiaTIC form: honeypot, 5 requests / 10 min per IP,
+HTML escaping, per-field length caps, and a 201 fake-success for bots.
 
 ## Security debt
 
