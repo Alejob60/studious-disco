@@ -1,51 +1,114 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bot, Send, Sparkles, User } from 'lucide-react'
-import { INITIAL_MESSAGES, type ChatMessage } from '../data/mock'
+import { INITIAL_MESSAGES, SCRIPTED_REPLIES, type ChatMessage } from '../data/mock'
+import { isApiConfigured, sendChatMessage, type AgentAction } from '../lib/api'
 import { Reveal } from './ui/Reveal'
 
-/** Canned replies, picked in order so the demo feels responsive without a backend. */
-const SCRIPTED_REPLIES = [
-  'Entendido. Ajusté el umbral de reposición al 82% y reservé inventario con el proveedor para cubrir el pico.',
-  'Listo. Comparé tres proveedores y el mejor costo por unidad está en el lote del jueves. ¿Autorizas la orden?',
-  'Hecho. Dejé la campaña en modo learns y te aviso mañana con el resultado real contra lo proyectado.',
-]
+type Turn = { role: string; content: string }
 
-/** Conversational panel where the agent proposes actions and the user confirms. */
-export function AgentChat() {
+/**
+ * Converts an executed tool call into the metadata chip shown under the bubble,
+ * so the agent's actions are visible instead of only claimed in prose.
+ */
+function describeAction(action: AgentAction): string {
+  if (action.name === 'activate_campaign') {
+    const channel = String(action.input.channel ?? 'whatsapp')
+    const label = channel === 'whatsapp' ? 'WhatsApp' : channel.toUpperCase()
+    const audience = action.input.audienceSize
+    const revenue = action.input.expectedRevenueCop
+
+    const extras = [
+      audience ? `${Number(audience).toLocaleString('es-CO')} contactos` : null,
+      revenue ? `$${Number(revenue).toLocaleString('es-CO')} COP` : null,
+    ].filter(Boolean)
+
+    return `Campaña activada · ${label}${extras.length ? ` · ${extras.join(' · ')}` : ''}`
+  }
+
+  if (action.name === 'adjust_reorder_point') {
+    return `Punto de reposición ajustado · ${action.input.sku ?? 'SKU'} → ${action.input.newUnits ?? '?'} unid.`
+  }
+
+  return `Acción ejecutada · ${action.name}`
+}
+
+/**
+ * Conversational panel where the agent proposes actions and the user confirms.
+ *
+ * Talks to the Bedrock-backed `/chat` endpoint when the API is configured, and
+ * falls back to canned replies when it is not, so the demo still works offline.
+ */
+export function AgentChat({ live }: { live: boolean }) {
   const reduceMotion = useReducedMotion()
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES)
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const replyCount = useRef(0)
+  const nextId = useRef(INITIAL_MESSAGES.length + 1)
 
   // Keep the newest message in view as the conversation grows.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' })
   }, [messages, thinking, reduceMotion])
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim()
     if (!text || thinking) return
 
-    setMessages((prev) => [...prev, { id: Date.now(), role: 'user', text }])
+    // Prior turns sent as context; the pending message goes separately so the
+    // UI echo and the API payload can never disagree.
+    const history: Turn[] = messages
+      .slice(-10)
+      .map((message) => ({
+        role: message.role === 'agent' ? 'assistant' : 'user',
+        content: message.text,
+      }))
+
+    setMessages((prev) => [...prev, { id: nextId.current++, role: 'user', text }])
     setDraft('')
     setThinking(true)
+    setNotice(null)
 
-    // Simulated round-trip to the agent.
-    window.setTimeout(() => {
+    if (!isApiConfigured) {
+      // Local fallback so the panel is still usable with no API configured.
+      window.setTimeout(() => {
+        const reply = SCRIPTED_REPLIES[replyCount.current % SCRIPTED_REPLIES.length]
+        replyCount.current += 1
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId.current++, role: 'agent', text: reply, meta: 'Respuesta local · sin API' },
+        ])
+        setThinking(false)
+      }, 700)
+      return
+    }
+
+    try {
+      const result = await sendChatMessage(text, history)
+      const actionNote = result.actions?.length
+        ? describeAction(result.actions[0])
+        : 'Contexto compartido desde el pronóstico'
+
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId.current++, role: 'agent', text: result.reply, meta: actionNote },
+      ])
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'error desconocido'
       const reply = SCRIPTED_REPLIES[replyCount.current % SCRIPTED_REPLIES.length]
       replyCount.current += 1
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, role: 'agent', text: reply, meta: 'Acción ejecutada · automatizada' },
+        { id: nextId.current++, role: 'agent', text: reply, meta: 'Respuesta local · API no disponible' },
       ])
+      setNotice(`No se pudo contactar al agente (${detail}). Se muestra una respuesta de demostración.`)
+    } finally {
       setThinking(false)
-    }, 900)
+    }
   }
-
-  const isAgent = (role: ChatMessage['role']) => role === 'agent'
 
   return (
     <section id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -68,7 +131,9 @@ export function AgentChat() {
               <span className="relative inline-flex size-2.5 rounded-full bg-gold" />
             </span>
             <p className="text-sm font-medium text-white">agente.demanda</p>
-            <span className="ml-auto text-xs text-body">En línea · Bedrock</span>
+            <span className="ml-auto text-xs text-body">
+              {live ? 'En línea · Claude en Bedrock' : 'Sin conexión · respuestas locales'}
+            </span>
           </div>
 
           <div className="max-h-[420px] space-y-4 overflow-y-auto px-4 py-6 sm:px-6">
@@ -79,18 +144,20 @@ export function AgentChat() {
                   initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                  className={`flex gap-3 ${isAgent(message.role) ? 'justify-start' : 'justify-end'}`}
+                  className={`flex gap-3 ${message.role === 'agent' ? 'justify-start' : 'justify-end'}`}
                 >
-                  {isAgent(message.role) && (
+                  {message.role === 'agent' && (
                     <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full border border-line-strong bg-surface-2">
                       <Bot className="size-4 text-gold" strokeWidth={2} />
                     </span>
                   )}
 
-                  <div className={`max-w-[85%] sm:max-w-[75%] ${isAgent(message.role) ? '' : 'flex flex-col items-end'}`}>
+                  <div
+                    className={`max-w-[85%] sm:max-w-[75%] ${message.role === 'agent' ? '' : 'flex flex-col items-end'}`}
+                  >
                     <p
                       className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                        isAgent(message.role)
+                        message.role === 'agent'
                           ? 'rounded-tl-sm border border-line bg-surface-2 text-white'
                           : 'rounded-tr-sm bg-gradient-to-r from-gold to-gold-light text-black'
                       }`}
@@ -103,7 +170,7 @@ export function AgentChat() {
                     )}
                   </div>
 
-                  {!isAgent(message.role) && (
+                  {message.role === 'user' && (
                     <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-gold text-black">
                       <User className="size-4" strokeWidth={2.5} />
                     </span>
@@ -138,12 +205,18 @@ export function AgentChat() {
           </div>
 
           <div className="border-t border-line p-3 sm:p-4">
+            {notice && (
+              <p className="mb-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2 text-[11px] text-gold">
+                {notice}
+              </p>
+            )}
+
             <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-3 py-2 focus-within:border-gold/40">
               <input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') send()
+                  if (event.key === 'Enter') void send()
                 }}
                 placeholder="Escribe una instrucción al agente..."
                 aria-label="Instrucción para el agente"
@@ -151,7 +224,7 @@ export function AgentChat() {
               />
               <motion.button
                 type="button"
-                onClick={send}
+                onClick={() => void send()}
                 disabled={!draft.trim() || thinking}
                 whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                 aria-label="Enviar instrucción"
@@ -161,7 +234,7 @@ export function AgentChat() {
               </motion.button>
             </div>
             <p className="mt-2 px-1 text-[11px] text-white/25">
-              Enter para enviar · Simulación local, sin llamadas a la API.
+              Enter para enviar · El agente responde con Claude (Amazon Bedrock) sobre el pronóstico.
             </p>
           </div>
         </div>

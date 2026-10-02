@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Atelier Predict - serverless backend for the AWS Zero to Shipped hackathon.
+  A statistical forecasting API plus an agentic Lambda backed by Claude on
+  Amazon Bedrock, both behind an HTTP API.
+
+Parameters:
+  ArtifactBucket:
+    Type: String
+    Description: S3 bucket holding the zipped Lambda bundle (created by infra/deploy.ps1).
+  CodeKey:
+    Type: String
+    Default: atelier-predict.zip
+    Description: Object key of the Lambda bundle inside ArtifactBucket.
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    Description: >
+      Cross-region Bedrock inference profile ID. Pinned to Claude Sonnet 4.5
+      because Sonnet 4.6 on this account returns a marketplace entitlement error.
+  BedrockFoundationModelId:
+    Type: String
+    Default: anthropic.claude-sonnet-4-5-20250929-v1:0
+    Description: >
+      Underlying foundation model ID (no cross-region prefix). Needed in IAM
+      because cross-region inference also authorises against the base model.
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # HTTP API
+  # ---------------------------------------------------------------------------
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: atelier-predict-api
+      ProtocolType: HTTP
+      Description: Forecast and agent endpoints for Atelier Predict.
+      CorsConfiguration:
+        # The frontend is a static Amplify site, so any origin is allowed.
+        # Tighten to the deployed Amplify URL before this handles real customer data.
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        MaxAge: 300
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: true
+
+  # ---------------------------------------------------------------------------
+  # Forecast function: pure statistics, zero AWS API calls.
+  # ---------------------------------------------------------------------------
+  ForecastLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/atelier-predict-forecast'
+      RetentionInDays: 14
+
+  ForecastRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Least privilege: logs only. This function never touches another service.
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: Execution role for the forecast Lambda (logs only).
+
+  ForecastFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: atelier-predict-forecast
+      Runtime: nodejs22.x
+      # NOTE: an explicit `Architecture` property is rejected by CloudFormation's
+      # EarlyValidation hook in this account (verified for both arm64 and
+      # x86_64). Omitted deliberately, so Lambda defaults to x86_64.
+      Handler: forecast/index.handler
+      Role: !GetAtt ForecastRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref CodeKey
+      Timeout: 10
+      MemorySize: 512
+      Description: Holt-Winters demand forecast with a seasonal-naive backtest.
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+
+  ForecastIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ForecastFunction.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 10000
+
+  ForecastRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: GET /forecast
+      Target: !Sub 'integrations/${ForecastIntegration}'
+
+  # ---------------------------------------------------------------------------
+  # Agent function: Claude on Bedrock with tool use.
+  # ---------------------------------------------------------------------------
+  AgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/atelier-predict-agent'
+      RetentionInDays: 14
+
+  AgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: Execution role for the agent Lambda (logs plus scoped Bedrock invoke).
+      Policies:
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: InvokeConfiguredClaude
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                # Scoped to this one profile and its base model. No bedrock:*.
+                # Cross-region inference routes to other regions (this profile
+                # fans out to us-east-1 and us-east-2), and IAM is evaluated in
+                # the destination region, so the base-model ARN must be allowed
+                # across regions. Still restricted to a single model ID.
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockFoundationModelId}'
+
+  AgentFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: atelier-predict-agent
+      Runtime: nodejs22.x
+      # See the Architecture note on ForecastFunction.
+      Handler: agent/index.handler
+      Role: !GetAtt AgentRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref CodeKey
+      Timeout: 28
+      MemorySize: 1024
+      Description: Claude agent that turns the forecast into campaign and reorder actions.
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+
+  AgentIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt AgentFunction.Arn
+      PayloadFormatVersion: '2.0'
+      # HTTP API caps this at 30000 ms; the Lambda timeout is set lower so the
+      # function returns a clean JSON error before the gateway cuts the request.
+      TimeoutInMillis: 29000
+
+  ChatRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: POST /chat
+      Target: !Sub 'integrations/${AgentIntegration}'
+
+  # ---------------------------------------------------------------------------
+  # API Gateway is allowed to invoke both functions, and nothing else.
+  # ---------------------------------------------------------------------------
+  ForecastInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ForecastFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+  AgentInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AgentFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the Atelier Predict API.
+    # The $default stage needs no stage segment in the URL.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  ForecastEndpoint:
+    Description: GET the demand forecast and backtest metrics.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/forecast'
+  ChatEndpoint:
+    Description: POST a message to the Bedrock-backed agent.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/chat'
+  ForecastFunctionArn:
+    Description: ARN of the forecast Lambda.
+    Value: !GetAtt ForecastFunction.Arn
+  AgentFunctionArn:
+    Description: ARN of the agent Lambda.
+    Value: !GetAtt AgentFunction.Arn
+

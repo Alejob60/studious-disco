@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Deployment staging artifacts
+infra/.staging
+backend/node_modules

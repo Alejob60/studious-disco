@@ -11,8 +11,9 @@ import {
 } from 'recharts'
 import { useReducedMotion } from 'motion/react'
 import { Activity, Sparkles } from 'lucide-react'
-import { FORECAST_POINTS, FORECAST_START_INDEX } from '../data/mock'
 import { formatNumber } from '../lib/format'
+import type { ChartPoint } from '../lib/forecast-view'
+import type { ForecastMetrics } from '../lib/api'
 import { Reveal } from './ui/Reveal'
 
 const AXIS = {
@@ -71,7 +72,19 @@ const SERIES = [
 ] as const
 
 /** Main comparison chart: what actually happened vs. what the model expects. */
-export function ForecastChart() {
+export function ForecastChart({
+  points,
+  forecastStartIndex,
+  metrics,
+  peakDay,
+  peakUnits,
+}: {
+  points: ChartPoint[]
+  forecastStartIndex: number
+  metrics: ForecastMetrics
+  peakDay: string
+  peakUnits: number
+}) {
   const reduceMotion = useReducedMotion()
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
 
@@ -126,7 +139,7 @@ export function ForecastChart() {
           <div className="h-[280px] w-full sm:h-[360px] lg:h-[420px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={FORECAST_POINTS}
+                data={points}
                 margin={{ top: 8, right: 8, bottom: 0, left: -18 }}
               >
                 <defs>
@@ -149,7 +162,7 @@ export function ForecastChart() {
 
                 {/* Boundary between "what happened" and "what the agent expects". */}
                 <ReferenceLine
-                  x={FORECAST_POINTS[FORECAST_START_INDEX].day}
+                  x={points[forecastStartIndex]?.day}
                   stroke="rgba(212,175,55,0.45)"
                   strokeDasharray="4 4"
                   label={{
@@ -191,13 +204,20 @@ export function ForecastChart() {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4 text-xs text-body">
-            <span className="flex items-center gap-2">
+<span className="flex items-center gap-2">
               <Sparkles className="size-3.5 text-gold" />
-              Pico detectado: <strong className="text-gold">jueves · 248 unid.</strong>
+              Pico detectado:{' '}
+              <strong className="text-gold">
+                {peakDay} · {formatNumber(peakUnits, 0)} unid.
+              </strong>
             </span>
             <span>
-              Error medio del modelo:{' '}
-              <strong className="text-white">6.4% MAPE</strong>
+              Backtest sobre {metrics.holdoutPoints} días:{' '}
+              <strong className="text-white">{metrics.wape}% WAPE</strong>
+              <span className="text-white/40">
+                {' '}
+                (baseline estacional {metrics.baselineWape}%)
+              </span>
             </span>
           </div>
         </div>
@@ -205,3 +225,4 @@ export function ForecastChart() {
     </section>
   )
 }
+

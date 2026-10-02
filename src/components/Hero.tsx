@@ -1,10 +1,11 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Sparkles } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 const TRUST_POINTS = ['Amazon Bedrock', 'Forecast en tiempo real', 'Acciones agénticas']
 
 /** Above-the-fold pitch: value proposition + primary call to action. */
-export function Hero() {
+export function Hero({ badge }: { badge?: ReactNode }) {
   const reduceMotion = useReducedMotion()
 
   const rise = (delay: number) =>
@@ -19,13 +20,17 @@ export function Hero() {
   return (
     <section id="top" className="relative mx-auto max-w-7xl px-4 pb-8 pt-16 sm:px-6 sm:pt-24 lg:px-8 lg:pt-28">
       <div className="relative z-10 mx-auto max-w-3xl text-center">
-        <motion.span
-          {...rise(0)}
-          className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/5 px-3.5 py-1.5 text-xs font-medium text-gold"
-        >
-          <Sparkles className="size-3.5" strokeWidth={2} />
-          Pronóstico agéntico para retail colombiano
-        </motion.span>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <motion.span
+            {...rise(0)}
+            className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/5 px-3.5 py-1.5 text-xs font-medium text-gold"
+          >
+            <Sparkles className="size-3.5" strokeWidth={2} />
+            Pronóstico agéntico para retail colombiano
+          </motion.span>
+
+          {badge}
+        </div>
 
         <motion.h1
           {...rise(0.1)}

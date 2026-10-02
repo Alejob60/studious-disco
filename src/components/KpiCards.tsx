@@ -3,16 +3,17 @@ import { ArrowDownRight, ArrowUpRight, Info } from 'lucide-react'
 import { Reveal } from './ui/Reveal'
 import { useCountUp } from '../lib/useCountUp'
 import { formatDelta, formatNumber } from '../lib/format'
-import { KPIS, type Kpi } from '../data/mock'
+import type { DisplayKpi } from '../lib/forecast-view'
 
 /** One KPI tile. Isolated so the count-up animation owns a single ref. */
-function KpiCard({ kpi, index }: { kpi: Kpi; index: number }) {
+function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
   const reduceMotion = useReducedMotion()
   const { ref, value } = useCountUp(kpi.value, kpi.decimals)
 
-  // A drop in costs is good, so the arrow colour depends on `higherIsBetter`.
-  const positive = kpi.delta > 0
-  const isGood = kpi.higherIsBetter ? positive : !positive
+  // Only render a trend chip when there is an honest comparison to make.
+  const hasDelta = typeof kpi.delta === 'number' && Number.isFinite(kpi.delta)
+  const positive = (kpi.delta ?? 0) > 0
+  const isGood = kpi.higherIsBetter === false ? !positive : positive
   const TrendIcon = positive ? ArrowUpRight : ArrowDownRight
 
   return (
@@ -45,32 +46,36 @@ function KpiCard({ kpi, index }: { kpi: Kpi; index: number }) {
         {kpi.suffix && <span className="text-base font-medium text-body">{kpi.suffix}</span>}
       </p>
 
-      <p
-        className={`relative mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-          isGood ? 'bg-gold/10 text-gold' : 'bg-red-500/10 text-red-400'
-        }`}
-      >
-        <TrendIcon className="size-3.5" strokeWidth={2.5} />
-        {formatDelta(kpi.delta, Number.isInteger(kpi.delta) ? 0 : 1)}
-        <span className="text-body">vs. periodo anterior</span>
-      </p>
+      {hasDelta ? (
+        <p
+          className={`relative mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+            isGood ? 'bg-gold/10 text-gold' : 'bg-red-500/10 text-red-400'
+          }`}
+        >
+          <TrendIcon className="size-3.5" strokeWidth={2.5} />
+          {formatDelta(kpi.delta!, Number.isInteger(kpi.delta) ? 0 : 2)}
+          <span className="text-body">vs. semana actual</span>
+        </p>
+      ) : (
+        <p className="relative mt-3 text-xs text-white/35">{kpi.hint}</p>
+      )}
     </motion.article>
   )
 }
 
 /** The three headline metrics directly under the hero. */
-export function KpiCards() {
+export function KpiCards({ kpis }: { kpis: DisplayKpi[] }) {
   return (
     <section id="kpis" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <Reveal className="mb-6 flex items-end justify-between gap-4">
         <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-body">
           Indicadores clave
         </h2>
-        <span className="text-xs text-white/30">Datos simulados · últimos 14 días</span>
+        <span className="text-xs text-white/30">Modelo: Holt-Winters estacional · período 7 días</span>
       </Reveal>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {KPIS.map((kpi, i) => (
+        {kpis.map((kpi, i) => (
           <KpiCard key={kpi.id} kpi={kpi} index={i} />
         ))}
       </div>
