@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test backend/test/",
+    "test:backend": "node --test backend/test/forecast-engine.test.js backend/test/lead-validation.test.js backend/test/tool-validation.test.js",
+    "verify:api": "node scripts/verify-api.mjs",
+    "verify:integration": "node scripts/verify-integration.mjs",
+    "verify": "npm run typecheck && npm run test:backend",
+    "typecheck": "tsc -b",
+    "postbuild": "node scripts/generate-seo.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

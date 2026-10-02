@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { AlertTriangle, CheckCircle2, Loader2, Mail, RotateCcw, Send } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider'
+import { trackEvent } from '../lib/analytics'
 
 type InterestKey = 'government' | 'business' | 'investment'
 type FieldName = 'name' | 'email' | 'company' | 'role' | 'challenge'
@@ -96,6 +97,7 @@ export function ContactForm() {
 
     setStatus('submitting')
     setFailure(null)
+    trackEvent({ name: 'lead_form_submit', locale, interests: values.interests })
 
     try {
       const response = await fetch(`${API_URL}/lead`, {
@@ -104,15 +106,19 @@ export function ContactForm() {
         body: JSON.stringify({ ...values, locale }),
       })
 
-      if (!response.ok) {
+if (!response.ok) {
         if (response.status === 429) setFailure('rate')
         else if (response.status >= 500) setFailure('delivery')
+        trackEvent({ name: 'lead_form_error', reason: String(response.status) })
         setStatus('error')
         return
       }
 
+      const result = (await response.json().catch(() => ({}))) as { emailed?: boolean }
+      trackEvent({ name: 'lead_form_success', emailed: result.emailed === true })
       setStatus('success')
     } catch {
+      trackEvent({ name: 'lead_form_error', reason: 'network' })
       setStatus('error')
       setFailure('delivery')
     }

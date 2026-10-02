@@ -4,6 +4,7 @@ import { Cookie } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n/I18nProvider'
 import { slugFromDocId } from '../../content/legal-meta'
+import { trackEvent } from '../../lib/analytics'
 
 const STORAGE_KEY = 'atelier-predict.consent'
 
@@ -46,6 +47,7 @@ export function CookieConsent() {
   }, [])
 
   const decide = (value: Exclude<Consent, null>) => {
+    trackEvent({ name: 'cookie_consent', choice: value })
     writeConsent(value)
     setVisible(false)
   }
@@ -121,3 +123,4 @@ export function useCookieConsent() {
 
   return { consent, update }
 }
+

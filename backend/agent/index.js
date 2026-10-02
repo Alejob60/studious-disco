@@ -1,5 +1,6 @@
 const { BedrockRuntimeClient, ConverseCommand } = require('@aws-sdk/client-bedrock-runtime')
 const { buildForecastReport, buildSyntheticHistory } = require('../shared/forecast-engine.js')
+const { validateToolInput } = require('./tool-validation.js')
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-6'
 
@@ -163,41 +164,6 @@ async function converse(messages, systemText) {
       inferenceConfig: { maxTokens: MAX_TOKENS, temperature: 0.4 },
     }),
   )
-}
-
-/**
- * Model output is untrusted input: clamp every value before it is echoed to
- * the UI or, in a future version, executed against a real campaign API.
- */
-function validateToolInput(name, input) {
-  if (name === 'activate_campaign') {
-    const channels = ['whatsapp', 'email', 'sms']
-    const channel = channels.includes(input.channel) ? input.channel : 'whatsapp'
-    const action = {
-      channel,
-      targetDay: String(input.targetDay ?? '').slice(0, 32),
-    }
-    // Optional fields are omitted rather than defaulted: a fabricated audience
-    // of "1 contact" reads as a real figure in the UI.
-    if (input.audienceSize != null) action.audienceSize = clampInt(input.audienceSize, 1, 500000)
-    if (input.expectedRevenueCop != null) action.expectedRevenueCop = clampInt(input.expectedRevenueCop, 0, 5000000000)
-    return action
-  }
-
-  if (name === 'adjust_reorder_point') {
-    return {
-      sku: String(input.sku ?? '').slice(0, 64),
-      newUnits: clampInt(input.newUnits, 1, 1000000),
-    }
-  }
-
-  return {}
-}
-
-function clampInt(value, min, max) {
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric)) return min
-  return Math.min(Math.max(Math.round(numeric), min), max)
 }
 
 function textOf(response) {

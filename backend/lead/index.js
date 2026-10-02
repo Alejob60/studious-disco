@@ -19,10 +19,9 @@ const SOURCE_TAG = process.env.LEAD_SOURCE_TAG ?? 'atelier-predict-hackathon'
 // Optional secondary persistence, same shape the ColombiaTIC landing uses.
 const CRM_BASE = (process.env.CRM_API_BASE ?? '').replace(/\/+$/, '')
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const MAX_NAME = 160
-const MAX_SHORT = 320
-const MAX_LONG = 4000
+const { buildNotes, escapeHtml, parseLead } = require('./validation.js')
+
+
 
 const RATE_LIMIT_MAX = 5
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
@@ -86,20 +85,6 @@ function isRateLimited(key) {
   return false
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-function clean(value, max) {
-  return typeof value === 'string' ? value.trim().slice(0, max) : ''
-}
-
-function escapeHtml(value) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 function respond(statusCode, payload) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(payload) }
 }
@@ -156,27 +141,18 @@ async function main(event) {
     return respond(400, { success: false, error: 'invalid_payload' })
   }
 
+const { ok, isHoneypot, lead } = parseLead(payload)
+
   // Honeypot: bots fill hidden fields. Answer 201 so they learn nothing.
-  if (clean(payload.website, 200).length > 0) {
+  if (isHoneypot) {
     return respond(201, { success: true, persisted: false, emailed: false })
   }
 
-  const name = clean(payload.name, MAX_NAME)
-  const email = clean(payload.email, MAX_SHORT).toLowerCase()
-  const company = clean(payload.company, MAX_SHORT)
-  const role = clean(payload.role, MAX_SHORT)
-  const challenge = clean(payload.challenge, MAX_LONG)
-  const locale = clean(payload.locale, 8) === 'en' ? 'en' : 'es'
-  const interests = Array.isArray(payload.interests)
-    ? payload.interests
-        .filter((item) => typeof item === 'string')
-        .filter((item) => item in INTERESTS.es)
-        .slice(0, 5)
-    : []
-
-  if (!name || !company || !role || !challenge || !EMAIL_PATTERN.test(email) || email.length > 254) {
+  if (!ok) {
     return respond(400, { success: false, error: 'invalid_fields' })
   }
+
+const { name, email, company, role, challenge, locale, interests } = lead
 
   const clientKey =
     event.requestContext?.http?.sourceIp ??
@@ -194,15 +170,7 @@ async function main(event) {
   let persisted = false
   if (CRM_BASE) {
     try {
-      const notes = [
-        role ? `Cargo: ${role}` : '',
-        interests.length ? `Intereses: ${interestLabel}` : '',
-        challenge ? `Desafío: ${challenge}` : '',
-        `Origen: ${SOURCE_TAG}`,
-        `Locale: ${locale}`,
-      ]
-        .filter(Boolean)
-        .join('\n')
+const notes = buildNotes(lead, labels, SOURCE_TAG)
 
       const response = await fetch(`${CRM_BASE}/demo-leads`, {
         method: 'POST',
@@ -289,3 +257,4 @@ async function handler(event) {
 }
 
 module.exports = { handler }
+

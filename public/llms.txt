@@ -1,0 +1,59 @@
+# Atelier Predict
+
+> Motor de pronóstico de demanda con IA agéntica para el retail colombiano.
+> Pronóstico estadístico (Holt-Winters con estacionalidad semanal) sobre datos de
+> consumo reales, más un agente en Amazon Bedrock que convierte el pronóstico en
+> acciones concretas. Construido para el hackathon AWS Zero to Shipped 2026.
+
+This file follows the llms.txt convention: a plain-text map of the site intended
+for language models and autonomous agents. It is not a substitute for the HTML.
+
+## What this site is
+
+- A demand forecasting dashboard for retail, in Spanish and English.
+- The forecast is computed by a statistical model and scored against a baseline
+  on a held-out window, so the accuracy figure on the page is auditable.
+- A conversational agent explains the forecast and can propose campaign and
+  inventory actions. It receives the statistical output as ground truth and
+  cannot invent demand numbers.
+
+## Routes
+
+- `/` — landing, Spanish. Identical content to `/es`.
+- `/es` — landing, Spanish.
+- `/en` — landing, English.
+- `/es/privacidad` — privacy policy (Spanish). `/en/privacy` — English.
+- `/es/terminos` — terms and conditions. `/en/terms` — English.
+- `/es/cookies` — cookie policy. `/en/cookies` — English.
+- `/es/reembolsos` — refund policy. `/en/refunds` — English.
+
+The landing page is a client-rendered single page app. Sections are anchored as
+`#kpis`, `#pronostico`, `#agente` and `#contacto`.
+
+## Key technical facts
+
+- Forecast model: additive Holt-Winters triple exponential smoothing, weekly
+  seasonal period (m=7), with a 14-day holdout backtest against a seasonal-naive
+  baseline.
+- Reported accuracy on the holdout: WAPE 7.77% for the model versus 10.17% for
+  the baseline; mean absolute error 13.97 versus 18.29 units per day.
+- Savings figures are derived from that backtest, not invented: 4.32 fewer
+  wrong units per day priced at a COP 18,500 unit contribution margin.
+- Agent: Claude Sonnet 4.5 through Amazon Bedrock (cross-region inference
+  profile), using the Converse API with tool use.
+- Infrastructure: AWS Lambda behind API Gateway HTTP API, provisioned with
+  CloudFormation. Static frontend on AWS Amplify Hosting.
+
+## Contact
+
+Enterprise enquiries: enterprise@colombiatic.com.co
+
+Legal entity: ColombiaTIC Ingeniería SAS, Colombia.
+
+## Important caveats
+
+- This is a hackathon MVP. The demo dataset is synthetic.
+- The legal pages are reference drafts and require legal review before being
+  published as binding policy.
+- The agent's actions are proposed, not executed against a live ad or messaging
+  platform.

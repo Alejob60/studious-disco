@@ -11,8 +11,13 @@ import { CookieConsent } from './components/legal/CookieConsent'
 import { ChartSkeleton } from './components/ui/ChartSkeleton'
 import { I18nProvider, isLocale, useI18n } from './i18n/I18nProvider'
 import type { Locale } from './i18n/dictionaries'
+import { SeoHead } from './components/SeoHead'
 import { toChartPoints, toKpis } from './lib/forecast-view'
+import { trackForecastSource } from './lib/analytics'
 import { useForecast } from './lib/useForecast'
+
+const SITE_ORIGIN =
+  (import.meta.env.VITE_SITE_ORIGIN as string | undefined) ?? window.location.origin
 
 // Recharts is ~360 kB minified, so the chart is split into its own chunk and
 // fetched after the first paint instead of blocking it.
@@ -43,6 +48,12 @@ function Landing() {
   const { data, source, loading, warning } = useForecast()
   const { points, forecastStartIndex } = toChartPoints(data)
   const kpis = toKpis(data)
+
+  // Report the data provenance once per load. A session recorded as `mock` means
+  // the dashboard fell back to bundled data, which must be visible in GA4.
+  useEffect(() => {
+    if (!loading) trackForecastSource(source)
+  }, [loading, source])
 
   return (
     <>
@@ -86,10 +97,11 @@ function LocaleRoute({
 
   if (!locale) return <Navigate to="/es" replace />
 
-  return (
+return (
     <I18nProvider locale={locale}>
       <DocumentLang />
       <ScrollToTop />
+      <SeoHead origin={SITE_ORIGIN} />
       <Header />
       <main id="main">{children}</main>
       <Footer />

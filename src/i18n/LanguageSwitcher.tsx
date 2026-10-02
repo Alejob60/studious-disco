@@ -1,4 +1,5 @@
 import { useI18n } from './I18nProvider'
+import { trackEvent } from '../lib/analytics'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 /**
@@ -13,6 +14,7 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
   const location = useLocation()
 
   const switchTo = (next: string) => {
+    trackEvent({ name: 'language_switched', from: locale, to: next })
     const segments = location.pathname.split('/').filter(Boolean)
     if (segments.length === 0 || !['es', 'en'].includes(segments[0])) {
       segments.unshift(next)
