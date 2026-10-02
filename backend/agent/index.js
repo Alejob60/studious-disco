@@ -148,6 +148,11 @@ async function handler(event) {
   }
 }
 
+/** Normalises an untrusted value to a trimmed, length-capped string. */
+function clean(value, max) {
+  return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
 async function converse(messages, systemText) {
   return client.send(
     new ConverseCommand({
