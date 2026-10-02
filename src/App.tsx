@@ -10,6 +10,7 @@ import { KpiCards } from './components/KpiCards'
 import { CookieConsent } from './components/legal/CookieConsent'
 import { ChartSkeleton } from './components/ui/ChartSkeleton'
 import { I18nProvider, isLocale, useI18n } from './i18n/I18nProvider'
+import type { Locale } from './i18n/dictionaries'
 import { toChartPoints, toKpis } from './lib/forecast-view'
 import { useForecast } from './lib/useForecast'
 
@@ -68,18 +69,29 @@ const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default:
  * Wraps a locale-scoped route so the language always resolves before children
  * render. Without this, a deep link such as `/en/terms` would briefly flash the
  * Spanish dictionary.
+ *
+ * `fallbackLocale` covers the unprefixed `/` entry point. It is rendered
+ * directly rather than redirected to `/es` so that refreshing the site root
+ * always returns the app, even on a host with no SPA rewrite rule configured.
  */
-function LocaleRoute({ children }: { children: React.ReactNode }) {
+function LocaleRoute({
+  children,
+  fallbackLocale,
+}: {
+  children: React.ReactNode
+  fallbackLocale?: Locale
+}) {
   const { lang } = useParams<{ lang: string }>()
+  const locale = fallbackLocale ?? (isLocale(lang) ? lang : null)
 
-  if (!isLocale(lang)) return <Navigate to="/es" replace />
+  if (!locale) return <Navigate to="/es" replace />
 
   return (
-    <I18nProvider locale={lang}>
+    <I18nProvider locale={locale}>
       <DocumentLang />
       <ScrollToTop />
       <Header />
-      <main>{children}</main>
+      <main id="main">{children}</main>
       <Footer />
       <CookieConsent />
     </I18nProvider>
@@ -104,7 +116,16 @@ export default function App() {
         </a>
 
         <Routes>
-          <Route path="/" element={<Navigate to="/es" replace />} />
+          {/* Unprefixed root renders Spanish in place instead of redirecting, so
+              a refresh on `/` can never land on a 404. */}
+          <Route
+            path="/"
+            element={
+              <LocaleRoute fallbackLocale="es">
+                <Landing />
+              </LocaleRoute>
+            }
+          />
           <Route
             path="/:lang"
             element={
