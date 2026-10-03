@@ -1,6 +1,14 @@
 const { BedrockRuntimeClient, ConverseCommand } = require('@aws-sdk/client-bedrock-runtime')
 const { buildForecastReport, buildSyntheticHistory } = require('../shared/forecast-engine.js')
 const { validateToolInput } = require('./tool-validation.js')
+const { TtlCache } = require('../shared/ttl-cache.js')
+
+// The demo history is deterministic, so the ground truth handed to the model is
+// identical on every request. Caching it removes a full Holt-Winters run plus two
+// backtests from the warm path, and keeps the prompt identical between turns,
+// which also helps Bedrock's prompt cache when it is enabled.
+const reportCache = new TtlCache(5 * 60 * 1000, 4)
+const promptCache = new Map()
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-sonnet-4-6'
 
@@ -93,8 +101,8 @@ async function handler(event) {
 
     const history = Array.isArray(body.history) ? body.history.slice(-MAX_TURNS) : []
     const locale = clean(body.locale, 8) === 'en' ? 'en' : 'es'
-    const report = buildForecastReport(buildSyntheticHistory())
-    const systemText = buildSystemPrompt(report, locale)
+    const report = reportCache.remember('default', () => buildForecastReport(buildSyntheticHistory()))
+    const systemText = rememberPrompt(report, locale)
 
     const conversation = [
       ...history.map(normaliseTurn).filter(Boolean),
@@ -152,6 +160,25 @@ async function handler(event) {
 /** Normalises an untrusted value to a trimmed, length-capped string. */
 function clean(value, max) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
+/**
+ * Builds the system prompt once per (report, locale) per container.
+ *
+ * Beyond the CPU saving, an identical prompt string across turns is what lets
+ * Bedrock's prompt cache match, which is worth far more than the computation.
+ */
+function rememberPrompt(report, locale) {
+  const key = `${report.model}:${locale}:${report.kpis.peakDay}:${report.history.length}`
+  const cached = promptCache.get(key)
+  if (cached !== undefined) return cached
+
+  const built = buildSystemPrompt(report, locale)
+  promptCache.set(key, built)
+
+  // One prompt per locale is enough; drop stale entries as locales change.
+  if (promptCache.size > 4) promptCache.clear()
+  return built
 }
 
 async function converse(messages, systemText) {
@@ -247,3 +274,4 @@ function respond(statusCode, payload) {
 }
 
 module.exports = { handler }
+

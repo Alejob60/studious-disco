@@ -188,15 +188,53 @@ cliente.
 
 ## 5. Plan maestro
 
-### Fase A — Optimizar lo que ya funciona (1 día, sin riesgo)
+### Fase A — Optimizar lo que ya funciona (1 día, sin riesgo) — **COMPLETADA**
 
-| # | Tarea | Esfuerzo | Verificación |
+Resultados medidos contra producción el 3 de octubre de 2026:
+
+| Tarea | Antes | Después | Verificación |
 | --- | --- | --- | --- |
-| A.1 | OPT-1: un artefacto por función | Bajo | Cold start de `forecast` baja; test de integración verde |
-| A.2 | OPT-2: memoizar pronóstico determinista | Bajo | Segundo request en la misma instancia no recalcula |
-| A.3 | OPT-3: concurrencia reservada | Bajo | overrun devuelve 429, no cobra |
-| A.4 | OPT-4: caché de `/forecast` | Medio | Segundo request < 100 ms |
-| A.5 | OPT-5: parámetro `window` | Bajo | Payload reducido, contrato verificado |
+| A.1 · Artefacto por función | forecast: **2.333.906 B** | forecast: **9.847 B** | `get-function-configuration` |
+| A.2 · Previsión memoizada | 26 ms/request | **1 ms** en instancia caliente | Test local directo |
+| A.4 · Caché TTL | sin caché | 1.442 ms (frío) → **308–383 ms** (caliente) | 3 requests consecutivos |
+| A.5 · `?window=N` | payload 6.268 chars | **2.370 chars** con `window=14` | Medición de payload |
+| A.3 · Concurrencia reservada | — | **no aplicable** | Ver abajo |
+
+**A.1 en detalle.** El zip compartido distribuía 2,4 MB a las tres funciones.
+Con un artefacto por función y resolución transitiva de dependencias:
+
+| Función | Paquetes | Zip |
+| --- | --- | --- |
+| `forecast` | **0** | **10 KB** |
+| `agent` | 27 | 2.245 KB |
+| `lead` | 24 | 2.189 KB |
+
+**A.3 no se pudo aplicar, y el motivo importa.** Esta cuenta tiene un quota de
+**10 ejecuciones concurrentes** (valor por defecto de una cuenta nueva). Lambda
+rechaza cualquier `ReservedConcurrentExecutions` que deje menos de 10 sin
+reservar, así que con quota 10 el valor máximo reservable es 0.
+
+Laprotection real contra gasto descontrolado en `/chat` es **subir el quota**:
+
+```bash
+aws service-quotas request-service-quota-increase \
+  --service-code lambda --quota-code L-B99A9384 \
+  --region us-east-1 --desired-value 100
+```
+
+Mientras tanto, el quota de 10 ya acota la concurrencia por sí solo.
+
+**Caché: un bug encontrado al probarla.** `window` no estaba en la clave de
+caché, así que una petición con `window=21` devolvía 28 puntos desde una entrada
+cacheada con 28. Se rediseñó para cachear el reporte **completo** y recortar
+`window` después de la lectura: una entrada sirve cualquier tamaño y el recorte ya
+no puede servir datos de otra petición.
+
+**Un detalle de diseño que salió bien.** La caché del agente reutiliza el mismo
+report en todos los turnos, lo que produce un `systemPrompt` **idéntico** entre
+peticiones. Eso es justo la condición para que el prompt cache de Bedrock
+funcione cuando se active; hoy no se activa porque el prompt está por debajo del
+mínimo cacheable de Sonnet, pero la estructura ya está.
 
 ### Fase B — Retador TimesFM (3–5 días, opt-in)
 

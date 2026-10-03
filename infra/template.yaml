@@ -4,14 +4,33 @@ Description: >
   A statistical forecasting API plus an agentic Lambda backed by Claude on
   Amazon Bedrock, both behind an HTTP API.
 
+  Each Lambda ships its own bundle: the forecast function carries no AWS SDK at
+  all, which keeps its cold start near 10 KB instead of 2.4 MB on the path that
+  runs on every page load.
+
+  NOTE: ReservedConcurrentExecutions is deliberately absent. This account has a
+  concurrent-execution quota of 10, and Lambda rejects any reservation that would
+  leave fewer than 10 unreserved. Raising the quota is the real fix for bounding
+  spend on the public /chat endpoint.
+
 Parameters:
   ArtifactBucket:
     Type: String
     Description: S3 bucket holding the zipped Lambda bundle (created by infra/deploy.ps1).
   CodeKey:
     Type: String
-    Default: atelier-predict.zip
-    Description: Object key of the Lambda bundle inside ArtifactBucket.
+    Default: atelier-predict-agent.zip
+    Description: >
+      Object key of the agent bundle inside ArtifactBucket. Each function has its
+      own bundle so the forecast function does not ship the AWS SDKs it never uses.
+  ForecastCodeKey:
+    Type: String
+    Default: atelier-predict-forecast.zip
+    Description: Object key of the forecast bundle (no AWS SDK dependencies).
+  LeadCodeKey:
+    Type: String
+    Default: atelier-predict-lead.zip
+    Description: Object key of the lead bundle (Secrets Manager only).
   BedrockModelId:
     Type: String
     Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
@@ -119,7 +138,7 @@ Resources:
       Role: !GetAtt ForecastRole.Arn
       Code:
         S3Bucket: !Ref ArtifactBucket
-        S3Key: !Ref CodeKey
+        S3Key: !Ref ForecastCodeKey
       Timeout: 10
       MemorySize: 512
       Description: Holt-Winters demand forecast with a seasonal-naive backtest.
@@ -277,7 +296,7 @@ Resources:
       Role: !GetAtt LeadRole.Arn
       Code:
         S3Bucket: !Ref ArtifactBucket
-        S3Key: !Ref CodeKey
+        S3Key: !Ref LeadCodeKey
       Timeout: 25
       MemorySize: 512
       Description: Hackathon lead capture with dual Resend delivery.
@@ -356,4 +375,5 @@ Outputs:
   AgentFunctionArn:
     Description: ARN of the agent Lambda.
     Value: !GetAtt AgentFunction.Arn
+
 

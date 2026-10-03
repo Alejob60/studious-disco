@@ -33,60 +33,45 @@ Set-StrictMode -Version Latest
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $repoRoot 'backend'
 $stagingDir = Join-Path $repoRoot 'infra\.staging'
-$zipPath = Join-Path $stagingDir 'atelier-predict.zip'
 $awsArgs = @('--region', $Region, '--profile', $Profile)
+# One bundle per function. The forecast function ships no AWS SDK, so it went from
+# a 2.4 MB download to roughly 22 KB on the path that runs on every page load.
+$Functions = @('forecast', 'agent', 'lead')
 
-Write-Host "`n==> 1/5 Verifying AWS credentials" -ForegroundColor Cyan
+Write-Host "`n==> 1/4 Verifying AWS credentials" -ForegroundColor Cyan
 aws sts get-caller-identity @awsArgs | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Not authenticated for profile '$Profile'." }
 $account = (aws sts get-caller-identity @awsArgs --query Account --output text).Trim()
 Write-Host "    account $account in $Region" -ForegroundColor DarkGray
 
-Write-Host "`n==> 2/5 Staging Lambda bundle" -ForegroundColor Cyan
-if (Test-Path $stagingDir) { Remove-Item -Recurse -Force $stagingDir }
-New-Item -ItemType Directory -Path $stagingDir | Out-Null
+Write-Host "`n==> 2/4 Bundling each function separately" -ForegroundColor Cyan
+node (Join-Path $repoRoot 'scripts\bundle-functions.mjs') $backendDir $stagingDir
+if ($LASTEXITCODE -ne 0) { throw 'Bundle build failed.' }
 
-Copy-Item -Recurse -Path (Join-Path $backendDir 'shared') -Destination $stagingDir
-Copy-Item -Recurse -Path (Join-Path $backendDir 'forecast') -Destination $stagingDir
-Copy-Item -Recurse -Path (Join-Path $backendDir 'agent') -Destination $stagingDir
-Copy-Item -Recurse -Path (Join-Path $backendDir 'lead') -Destination $stagingDir
+# Content hash per bundle: CloudFormation only diffs the S3 key, so a fixed key
+# turns every redeploy into a silent no-op.
+$codeKeys = @{}
+foreach ($fn in $Functions) {
+  $bundleDir = Join-Path $stagingDir $fn
+  if (-not (Test-Path $bundleDir)) { throw "Missing bundle for $fn." }
 
-# node_modules belongs at the bundle root so that forecast/index.js and
-# agent/index.js can both resolve it without nesting it inside one of them.
-$agentModules = Join-Path $stagingDir 'node_modules'
-if (Test-Path $agentModules) { Remove-Item -Recurse -Force $agentModules }
-Copy-Item -Recurse -Path (Join-Path $backendDir 'node_modules') -Destination $agentModules
+  $zipPath = Join-Path $stagingDir "$fn.zip"
+  Compress-Archive -Path (Join-Path $bundleDir '*') -DestinationPath $zipPath -Force
 
-# The bundle root must not carry a package.json: "type": "module" or a "main"
-# field here would change how Lambda loads the CommonJS handlers.
-$stalePackageJson = Join-Path $stagingDir 'package.json'
-if (Test-Path $stalePackageJson) { Remove-Item -Force $stalePackageJson }
-Get-ChildItem -Path (Join-Path $stagingDir 'agent') -Filter 'package*.json' -File |
-  ForEach-Object { Remove-Item -Force $_.FullName }
+  $sizeKb = [math]::Round((Get-Item $zipPath).Length / 1KB, 0)
+  $hash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.Substring(0, 12).ToLower()
+  $codeKeys[$fn] = "atelier-predict-$fn-$hash.zip"
 
-$testDir = Join-Path $stagingDir 'test'
-if (Test-Path $testDir) { Remove-Item -Recurse -Force $testDir }
-
-$fileCount = (Get-ChildItem -Recurse -File $stagingDir).Count
-$sizeMb = [math]::Round(((Get-ChildItem -Recurse -File $stagingDir | Measure-Object Length -Sum).Sum / 1MB), 1)
-Write-Host "    $fileCount files, $sizeMb MB staged" -ForegroundColor DarkGray
-
-Write-Host "`n==> 3/5 Zipping" -ForegroundColor Cyan
-# Compress-Archive would keep a top-level folder; Lambda needs the files at the
-# root of the zip.
-$zipStaging = Join-Path $stagingDir 'zip'
-New-Item -ItemType Directory -Path $zipStaging | Out-Null
-Copy-Item -Recurse -Force (Join-Path $stagingDir '*') -Destination $zipStaging -Exclude 'zip'
-Compress-Archive -Path (Join-Path $zipStaging '*') -DestinationPath $zipPath -Force
-Remove-Item -Recurse -Force $zipStaging
+  Write-Host ("    {0,-10} {1,6} KB -> {2}" -f $fn, $sizeKb, $codeKeys[$fn]) -ForegroundColor DarkGray
+}
 
 if ($SkipDeploy) {
-  Write-Host "`n    -SkipDeploy set. Artifact ready at $zipPath" -ForegroundColor Yellow
+  Write-Host "`n    -SkipDeploy set. Bundles are ready in $stagingDir" -ForegroundColor Yellow
   return
 }
 
-Write-Host "`n==> 4/5 Uploading to s3://$ArtifactBucket" -ForegroundColor Cyan
-$bucketRegion = (aws s3api head-bucket --bucket $ArtifactBucket @awsArgs --query Region --output text 2>$null)
+Write-Host "`n==> 3/4 Uploading to s3://$ArtifactBucket" -ForegroundColor Cyan
+$bucketExists = (aws s3api head-bucket --bucket $ArtifactBucket @awsArgs --query Region --output text 2>$null)
 if ($LASTEXITCODE -ne 0) {
   Write-Host "    creating bucket" -ForegroundColor DarkGray
   aws s3api create-bucket --bucket $ArtifactBucket @awsArgs | Out-Null
@@ -95,14 +80,14 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host "    enabled full public access block" -ForegroundColor DarkGray
 }
 
-# CloudFormation only diffs the S3 key, not the object body. Reusing a fixed key
-# makes every redeploy a silent no-op, so the hash of the bundle becomes the key.
-$hash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.Substring(0, 12).ToLower()
-$codeKey = "atelier-predict-$hash.zip"
-aws s3 cp $zipPath "s3://$ArtifactBucket/$codeKey" @awsArgs --only-show-errors
-Write-Host "    uploaded $codeKey" -ForegroundColor DarkGray
+foreach ($fn in $Functions) {
+  $zipPath = Join-Path $stagingDir "$fn.zip"
+  aws s3 cp $zipPath "s3://$ArtifactBucket/$($codeKeys[$fn])" @awsArgs --only-show-errors
+  if ($LASTEXITCODE -ne 0) { throw "Upload failed for $fn." }
+  Write-Host "    uploaded $($codeKeys[$fn])" -ForegroundColor DarkGray
+}
 
-Write-Host "`n==> 5/5 Deploying CloudFormation stack '$StackName'" -ForegroundColor Cyan
+Write-Host "`n==> 4/4 Deploying CloudFormation stack '$StackName'" -ForegroundColor Cyan
 $template = Join-Path $PSScriptRoot 'template.yaml'
 
 # Fail fast on a malformed template instead of surfacing a generic hook error.
@@ -116,7 +101,9 @@ if ($LASTEXITCODE -ne 0) { throw "infra/template.yaml is not valid CloudFormatio
 # Every parameter is therefore listed here.
 $paramList = @(
   "ParameterKey=ArtifactBucket,ParameterValue=$ArtifactBucket",
-  "ParameterKey=CodeKey,ParameterValue=$codeKey",
+  "ParameterKey=CodeKey,ParameterValue=$($codeKeys['agent'])",
+  "ParameterKey=ForecastCodeKey,ParameterValue=$($codeKeys['forecast'])",
+  "ParameterKey=LeadCodeKey,ParameterValue=$($codeKeys['lead'])",
   "ParameterKey=BedrockModelId,ParameterValue=$ModelId",
   "ParameterKey=BedrockFoundationModelId,ParameterValue=$FoundationModelId",
   "ParameterKey=ResendSecretName,ParameterValue=$ResendSecretName",
@@ -188,7 +175,7 @@ if ($hasChanges -eq '0') {
 $outputPairs = aws cloudformation describe-stacks @awsArgs --stack-name $StackName `
   --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' --output text 2>$null
 
-Write-Host "`n==> Deployed (code $codeKey)" -ForegroundColor Green
+Write-Host "`n==> Deployed" -ForegroundColor Green
 foreach ($line in $outputPairs) {
   $parts = ($line -split "`t")
   if ($parts.Count -ge 2) { Write-Host ("    {0,-20} {1}" -f $parts[0], $parts[1]) }
@@ -197,3 +184,6 @@ foreach ($line in $outputPairs) {
 $apiUrl = ($outputPairs | Where-Object { $_ -like 'ApiUrl*' }) -split "`t" | Select-Object -Last 1
 Write-Host "`nSmoke test:" -ForegroundColor Cyan
 Write-Host "    curl.exe $apiUrl/forecast"
+
+
+
