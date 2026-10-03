@@ -1,251 +1,367 @@
-# Atelier Predict
+# 🎯 Atelier Predict
 
-MVP full-stack for the **AWS Zero to Shipped 2026** hackathon — an agentic demand
-forecasting dashboard for Colombian retail.
+## ⚡ One-Liner
 
-- **Frontend:** `https://main.d28ukybtuih8pa.amplifyapp.com` (AWS Amplify Hosting)
-- **Backend API:** `https://il67zr1fr5.execute-api.us-east-1.amazonaws.com` (API Gateway → Lambda → Bedrock)
+**Atelier Predict forecasts retail demand 14 days ahead with a statistical model that proves it beats a naive baseline (7.77% vs 10.17% WAPE on held-out data), then hands that forecast to a Claude agent on Amazon Bedrock that turns predictions into campaigns and reorder actions — with a human approving.**
 
-## What makes this more than a dashboard
+---
 
-The forecast is **computed, not invented**. A statistical model fits the history
-and is then scored against a baseline on held-out data, so the accuracy claim on
-screen is auditable:
+## 🎬 Live Demo
 
-| Metric             | Model (Holt-Winters) | Baseline (seasonal naive) |
-| ------------------ | -------------------- | ------------------------- |
-| WAPE, 14d holdout  | **7.77 %**           | 10.17 %                   |
-| MAE                | **13.97 unid/día**   | 18.29 unid/día            |
+### **[https://main.d28ukybtuih8pa.amplifyapp.com](https://main.d28ukybtuih8pa.amplifyapp.com)**
 
-The headline savings figure is derived from that backtest rather than made up:
-the model commits 4.32 fewer wrong units per day, priced at a COP 18.500 unit
-margin over 30 days.
+> **Note for AWS judges:** this is not a mockup. The page calls a live serverless API
+> (`https://il67zr1fr5.execute-api.us-east-1.amazonaws.com`) that runs a Holt-Winters
+> forecast and invokes Claude on Bedrock on every request. A badge in the hero tells you
+> which mode you are in — **"Live data · AWS"** or **"Demo mode"** — so you always know
+> whether you are looking at real computation.
+>
+> Available in **Spanish** (`/es`) and **English** (`/en`).
 
-The agent **reasons over those numbers but never produces them**. Claude receives
-the statistical output as ground truth in its system prompt, so it cannot invent
-demand figures, and it can invoke `activate_campaign` / `adjust_reorder_point`
-tools whose arguments are validated before being echoed to the UI.
+---
 
-## Architecture
+## 🩺 The Problem
 
-```
-Browser (Amplify Hosting, static SPA)
-  │  GET  /forecast              POST /chat
-  ▼                               ▼
-API Gateway HTTP API (CORS: *)
-  │                               │
-  ▼                               ▼
-atelier-predict-forecast    atelier-predict-agent
-  │  Holt-Winters + backtest      │  Converse API + tool use
-  └─ no AWS calls at all          └─ bedrock:InvokeModel
-                                         only, scoped to one model
-```
+Retailers and public entities run marketing on instinct:
 
-| Concern         | Choice                                              |
-| --------------- | --------------------------------------------------- |
-| Frontend        | React 19 + TypeScript, built with Vite 8            |
-| Styling         | Tailwind CSS v4 (CSS-first `@theme` tokens)         |
-| Charts          | Recharts 3, split into a lazy chunk                 |
-| Animation       | Motion 13 (`motion/react`)                          |
-| Routing + i18n  | react-router-dom with `/es` and `/en`, custom `t()`  |
-| Model           | Additive Holt-Winters, weekly seasonality (m=7)     |
-| LLM             | Claude Sonnet 4.5 via `us.` cross-region profile    |
-| Email           | Resend HTTP API, key in AWS Secrets Manager          |
-| IaC             | Plain CloudFormation (`infra/template.yaml`)        |
-| Auth            | None — see [Security](#security-debt)               |
+- ❌ **Spray-and-pray messaging** — 30,000 messages hoping 5% respond
+- ❌ **No demand forecast** — stock out or overstock based on gut feeling
+- ❌ **Unverifiable AI claims** — nobody can prove a model's accuracy before trusting it
+- ❌ **Dashboards that lie** — numbers that were typed into a constant, not computed
 
-## Internationalisation
+**Result:** overspent budgets, stockouts on the exact days that mattered, and AI
+projects nobody trusts because the accuracy claim has no evidence behind it.
 
-Every user-facing string comes from `src/i18n/dictionaries.ts`; no component
-hardcodes copy. `t('hero.titleLead', { token })` interpolates `{token}`.
+---
 
-- Routes are locale-prefixed: `/es`, `/en`, plus the legal pages
-  (`/es/privacidad`, `/en/privacy`, …). `/` redirects to `/es`.
-- The language switcher swaps the first path segment and keeps the current page.
-- The agent Lambda receives the locale and answers in the same language.
-- `<html lang>` is kept in sync for screen readers.
+## 💡 What We Built
 
-### Languages
+### 📊 1. A forecast that has to prove itself
 
-| Locale | Path                 | Notes                                  |
-| ------ | -------------------- | -------------------------------------- |
-| `es`   | `/es`                | Default. Colombian Spanish, COP amounts |
-| `en`   | `/en`                | English, same layout                   |
+Additive **Holt-Winters** triple exponential smoothing with weekly seasonality
+(`m=7`), fitted over 90 days of history, projecting 14 days ahead with 95%
+confidence bands.
 
-## Getting started
+The differentiator is not the model — it is that **we score it against a baseline
+on data it never saw:**
+
+| Metric (14-day holdout) | Our model | Seasonal-naive baseline | Improvement |
+|---|---|---|---|
+| **WAPE** | **7.77 %** | 10.17 % | **23.6 % better** |
+| **MAE** | **13.97 units/day** | 18.29 units/day | **4.32 fewer wrong units/day** |
+
+Every one of those numbers is produced by the deployed code, reproducible from a
+seed, and asserted in `backend/test/forecast-engine.test.js`.
+
+### 🤖 2. An agent that reasons over numbers it did not produce
+
+Claude Sonnet 4.5 via Amazon Bedrock, called with the Converse API and **tool use**
+(`activate_campaign`, `adjust_reorder_point`).
+
+The forecast is injected into the system prompt as **ground truth**. The model
+therefore *cannot* invent demand figures — it narrates and acts on statistics it
+did not calculate. It also **stops and asks for confirmation** rather than firing
+campaigns on its own:
+
+> **Agent:** "I detect a demand spike for Saturday. Should I activate the WhatsApp
+> campaign for that day?"
+> **You:** "Yes, optimise the send to maximise revenue."
+> **Agent:** *(calls `activate_campaign`)* → "Campaign activated · WhatsApp"
+
+Tool arguments are **clamped before they leave the Lambda** — model output is
+untrusted input. If the model hallucinates a channel, it falls back to `whatsapp`;
+if it omits an audience, the field is dropped rather than fabricated as `1`.
+
+### ✅ 3. Engineering you can audit in one command
+
+The part we care about most: **the claims above are machine-checked against the
+deployed system.**
 
 ```bash
+npm run verify:integration   # 28 checks: live site ↔ live API
+npm run verify:api           # 29 checks: API contract the UI depends on
+npm run test:backend         # 31 unit tests
+npm run typecheck            # TypeScript, strict
+```
+
+Total: **88 automated checks, all green against production.**
+
+### 🌍 4. Bilingual and legible to both humans and agents
+
+- Full **es / en** with locale-prefixed routes, no hardcoded copy
+- The agent replies in the language of the interface
+- `/llms.txt`, `/robots.txt`, `/sitemap.xml` (11 URLs with hreflang), JSON-LD,
+  per-route canonical — so language models and crawlers can read the site properly
+
+---
+
+## ☁️ AWS Architecture
+
+Nine AWS services, each doing a job that requires it:
+
+```
+Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
+  │
+  ├── GET  /forecast ──► atelier-predict-forecast  (512 MB / 10 s)
+  │                        Holt-Winters + backtest. No AWS calls at all.
+  │
+  ├── POST /chat ──────► atelier-predict-agent     (1024 MB / 28 s)
+  │                        Bedrock Converse + tool use
+  │                        IAM: bedrock:InvokeModel on ONE model
+  │
+  └── POST /lead ──────► atelier-predict-lead      (512 MB / 25 s)
+                           Resend, key read at runtime from Secrets Manager
+                           IAM: secretsmanager:GetSecretValue on ONE secret
+                                    │
+                                    ▼
+                    enterprise@colombiatic.com.co  (tagged: atelier-predict-hackathon)
+```
+
+| Service | Role |
+|---|---|
+| **Amplify Hosting** | Static SPA hosting |
+| **Lambda** (×3) | Forecast, agent, lead capture |
+| **API Gateway** | HTTP API with CORS, routes, integration timeouts |
+| **Amazon Bedrock** | Claude Sonnet 4.5 via cross-region inference profile |
+| **Secrets Manager** | Resend API key, fetched at runtime — never in the function config |
+| **S3** | Versioned Lambda artifacts (public access fully blocked) |
+| **CloudWatch** | JSON logs, 14-day retention |
+| **IAM** | Three separate roles, least privilege |
+| **CloudFormation** | Whole stack from one template, reproducible |
+
+**This is not a wrapper around a hosted API.** Every number on the page is computed
+in a Lambda you can read, deploy with one command, and audit with two roles that
+cannot touch anything they do not need.
+
+---
+
+## 🧠 Technical Innovation
+
+### 1. An auditable benchmark instead of an accuracy claim
+
+Most demos assert accuracy. We *prove* it: the model is scored against a
+seasonal-naive baseline on a 14-day holdout, and the savings figure is **derived
+from that backtest** rather than invented:
+
+> 4.32 fewer wrong units per day × 30 days × COP 18,500 contribution margin
+> = **COP 2,395,611 / month of inventory savings**
+
+Change the assumption, and the number changes — because it is arithmetic, not
+marketing. The margin is an input in `buildForecastReport()`, documented as an
+assumption to replace with the client's real number.
+
+### 2. Grounded agency, not generative guessing
+
+The agent's most important property is what it *cannot* do: it cannot invent
+demand. The statistical layer owns the numbers; the LLM owns the language and the
+actions. A wrong forecast is a statistics bug, traceable and fixable — not a
+hallucination buried in a chat log.
+
+### 3. Supply-chain honesty as a feature
+
+`verify:integration` asserts that the bundle Amplify is *currently serving* points
+at the API that is *currently running*. Most demos never check that their deployed
+artefact matches their intent. Ours fails the build if it drifts.
+
+---
+
+## 📊 Market Impact — With Receipts
+
+We are deliberately **not** publishing customer case studies we cannot evidence.
+Here is the value proposition with the numbers we can actually defend:
+
+| Claim | Evidence |
+|---|---|
+| The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
+| Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
+| Inventory savings | COP 2,395,611/month, derived from that backtest |
+| Pipeline is real | 88 automated checks green against production |
+| The agent acts, not just answers | Tool calls executed and clamped server-side |
+
+**Target market:** SMBs and municipal tax offices in Colombia and Latin America.
+We have conversations in progress and will publish named results only when they
+are signed.
+
+---
+
+## 🤖 Coding Agent Proof
+
+The infrastructure, backend and frontend in this repository were built with an AI
+coding agent working against a live AWS account.
+
+**📹 Session recording:**
+[docs/amazon-q-infra-terraform.mp4](docs/amazon-q-infra-terraform.mp4)
+([raw download](https://github.com/Alejob60/studious-disco/raw/main/docs/amazon-q-infra-terraform.mp4))
+
+> The recording is named after the session it came from. For the record: the
+> infrastructure in this repo is **CloudFormation** (`infra/template.yaml`), not
+> Terraform — there is no `.tf` file in this repository.
+
+**What the agent built end-to-end:** CloudFormation template with three
+least-privilege IAM roles, three Lambda handlers, an HTTP API with CORS, a
+Bedrock agent with tool use and adaptive retries, a Resend integration reading
+its key from Secrets Manager, plus a React dashboard with a lazy-loaded chart, a
+bilingual router and four legal pages.
+
+Every deployment is scripted in `infra/deploy.ps1` and reproducible from a clean
+checkout.
+
+---
+
+## 🗺️ Judge's Guide: Experience the Demo
+
+**Happy path, ~4 minutes.**
+
+### Step 1 — Verify it is live (30 s)
+Look at the badge in the hero. It must read **"Live data · AWS"** in green.
+If it says "Demo mode", the API is unreachable and the page fell back to bundled
+data — the UI tells you rather than hiding it.
+
+### Step 2 — Read the KPI cards (30 s)
+- **Demand forecast (7 days):** a computed sum of the projection
+- **Inventory savings:** the backtest-derived figure
+- **Model precision (WAPE):** 7.77% — the same number in our table above
+
+### Step 3 — Inspect the forecast chart (30 s)
+- Grey line: **21 days of actuals**
+- Gold line with gradient: **14 days of projection**
+- Dashed gold divider: the boundary between what happened and what is expected
+- **Click the legend** to toggle either series — the labels are a real control
+- Hover any point for the exact value
+- Hover **each** forecast point: the tooltip shows the value; the band is ±1.96σ
+
+### Step 4 — Interact with the agent (90 s)
+1. Ask: *"Which day should I stock up, and should I act on it?"*
+   → It cites the real peak and its WAPE.
+2. Say: *"Yes, activate the WhatsApp campaign for that day."*
+   → Watch it **call the tool**. The chip under the reply reads
+   *"Campaign activated · WhatsApp"*.
+3. Try switching the language to **EN** and repeat. The agent answers in English.
+
+### Step 5 — Check the engineering (60 s)
+```bash
+git clone https://github.com/Alejob60/studious-disco && cd studious-disco
 npm install
-npm run dev              # http://localhost:5173
+npm run verify:integration \
+  https://main.d28ukybtuih8pa.amplifyapp.com \
+  https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
+28 checks against production, from your own machine.
 
-Without `VITE_API_URL` the dashboard runs in demo mode on bundled mock data.
-Copy `.env.example` to `.env.local` to point it at a live API.
+### Step 6 — The legal and agent surface (30 s)
+Open `/llms.txt`, `/en/privacy`, and the **cookie consent banner**. Four
+jurisdictional policies in two languages, and a site an external agent can read.
 
-```bash
-npm run build            # typecheck + production build into dist/
-npm run preview          # serve the production build
-```
+---
 
-## Backend
+## 📋 Tags
 
-```bash
-npm --prefix backend install       # only the Bedrock SDK client
-node --test backend/test/          # 10 tests for the forecasting engine
-node scripts/verify-api.mjs <apiUrl>   # asserts the live API matches the UI contract
-```
+- **App Category:** `#commercial-potential` · `#data-and-analytics`
+- **Lane:** `#startups`
 
-Deploy (no SAM or CDK CLI required):
+---
 
-```powershell
-./infra/deploy.ps1
-```
+## 🚀 Roadmap
 
-The script stages the handlers, bundles `node_modules`, uploads to S3 and applies
-the stack through a change set. It prints the API URL when done.
+### ✅ Phase 1 — Shipped (this hackathon)
+- Static SPA on Amplify Hosting, bilingual (`/es`, `/en`)
+- Holt-Winters forecast with seasonal-naive backtest — **deployed and scoring**
+- Claude agent on Bedrock with validated tool use — **deployed**
+- Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
+- Four legal policies in two languages, cookie consent, agent-readable surface
+- 88 automated checks against production
 
-| Endpoint     | Purpose                                                    |
-| ------------ | ---------------------------------------------------------- |
-| `GET /forecast` | Holt-Winters projection, 95 % bands, and the backtest   |
-| `POST /chat`    | Claude over that forecast, with tool use               |
-| `POST /lead`    | Hackathon contact form; notifies the team via Resend    |
+### 🔜 Phase 2 — Next 2 weeks *(planned, not built)*
+- Authentication on `/chat` and `/lead` (Cognito or API key)
+- Restricted CORS to the deployed origin only
+- Streaming agent replies (`ConverseStream`) to cut time-to-first-token
+- Real customer CSV via the existing `POST /forecast {"history": [...]}` contract
+- IAM deploy role replacing the root credentials used so far
 
-`POST /forecast` also accepts `{"history": [ ... ]}` to run the model against a
-real POS export instead of the synthetic demo history.
+### 💡 Phase 3 — Month 2–3 *(aspiration)*
+- **Time-series foundation model** (TimeFM or equivalent) benchmarked against our
+  Holt-Winters baseline on the same holdout. We will adopt it only if it wins on
+  our data — and we will publish the comparison either way.
+- WhatsApp Business API so `activate_campaign` reaches a real audience
+- Multi-tenant architecture and per-customer model selection
 
-## Frontend structure
+> **On our roadmap claims:** the items above are intentions, not achievements.
+> Anything labelled *shipped* in this README is running in production right now
+> and can be verified with the commands shown.
 
-```
-src/
-  components/
-    Header.tsx           sticky nav + AWS badge, gold hairline on scroll
-    Hero.tsx             headline, CTA, live/demo data badge
-    KpiCards.tsx         3 headline metrics with count-up animation
-    ForecastChart.tsx    real vs. predicted area chart (lazy loaded)
-    AgentChat.tsx        Bedrock conversation, falls back to canned replies
-    ContactForm.tsx      hackathon lead form, honeypot + validation
-    DataSourceBadge.tsx  "Datos en vivo · AWS" vs "Modo demostración"
-    Footer.tsx           legal links + hackathon attribution
-    legal/CookieConsent.tsx  consent banner (accept all / essential only)
-    ui/                  Reveal (scroll entrance), ChartSkeleton
-  content/
-    legal.ts             the four policy bodies, es + en
-    legal-meta.ts        slugs and labels only (keeps the bundle small)
-  i18n/
-    dictionaries.ts      all UI copy, es + en
-    I18nProvider.tsx     t(key, vars) hook, {token} interpolation
-    LanguageSwitcher.tsx  swaps the leading path segment
-  lib/
-    api.ts               typed client + response contracts
-    useForecast.ts       load with mock fallback
-    forecast-view.ts     API payload -> chart points and KPIs
-  data/mock.ts           mock history + buildMockForecast()
-  pages/
-    LegalPage.tsx        renders one policy (lazy loaded)
-```
+---
 
-There is a single rendering path: mock and live data have the same shape, so the
-fallback exercises the real components.
+## 💰 Business Model
 
-## Design system
+**Planned** SaaS tiers (not yet on sale):
 
-Tokens live in `src/index.css` under `@theme` and become utilities automatically.
+| Tier | Price | Includes |
+|---|---|---|
+| Essential | USD 29 / mo (~COP 116,000) | Forecasting, basic agent |
+| Growth | USD 99 / mo (~COP 396,000) | Advanced analytics, campaign automation |
+| Pro | USD 249 / mo (~COP 996,000) | Custom models, integrations |
 
-| Token        | Value                     | Role                     |
-| ------------ | ------------------------- | ------------------------ |
-| `ink`        | `#050505`                 | page background          |
-| `surface`    | `#161616`                 | cards and panels         |
-| `surface-2`  | `#1e1e1e`                 | nested surfaces          |
-| `body`       | `#A1A1AA`                 | secondary text           |
-| `gold`       | `#D4AF37`                 | primary accent           |
-| `gold-light` | `#F3E5AB`                 | accent gradient end      |
-| `aws`        | `#2ECC71` on `#052E1B`    | AWS badge                |
-| `line`       | `rgba(255,255,255,0.08)`  | hairline borders         |
+Pricing in COP at the current reference rate of 4,000 COP/USD. The demo tier
+is free and unlimited during the hackathon.
 
-## Accessibility & responsiveness
+---
 
-- Honours `prefers-reduced-motion`; every animation degrades to a static render.
-- Keyboard-reachable chart legend, skip link, labelled chat input.
-- Single column on mobile, three-column KPI grid from `lg`.
+## 👥 Team
 
-## Deploy the frontend
+- **Alejandro Benavides** — CEO & Principal Architect
 
-Amplify detects Vite automatically. Build settings:
+<!-- Add co-founders, advisors or technical leads here before submitting. -->
 
-```
-Base directory:  /       (empty)
-Build command:   npm run build
-Output directory:dist
-Runtime:         Node.js 22
-```
+---
 
-No environment variables needed in Amplify: `VITE_API_URL` is committed in
-`.env.production`. To point at a different API, set `VITE_API_URL` as an
-Amplify environment variable instead and delete that file.
+## 📞 Contact
 
-### Required: SPA rewrites for the i18n routes
+- **Enterprise:** enterprise@colombiatic.com.co
+- **Founder:** alejob600@gmail.com
+- **GitHub:** [github.com/Alejob60/studious-disco](https://github.com/Alejob60/studious-disco)
+- **Live app:** [main.d28ukybtuih8pa.amplifyapp.com](https://main.d28ukybtuih8pa.amplifyapp.com)
 
-The app uses locale-prefixed client routes (`/es`, `/en`, `/en/terms`). Without a
-rewrite, refreshing `/en` returns Amplify's 404 page instead of the app. In the
-Amplify console open **Hosting → Rewrites and redirects**, enable custom rules,
-clear the default rule and paste `infra/amplify-rewrites.json`:
+---
 
-```json
-[
-  { "source": "/<*>", "target": "/index.html", "conditions": [] }
-]
-```
+## 🔐 Security Posture
 
-Save and redeploy. Until this is in place the root `/` still works and the
-language switcher works in-app (client-side navigation), so the demo is not
-blocked — only deep links and refreshes are affected.
+Named honestly, because a judge who finds these unmentioned will assume they are
+hidden:
 
-## Legal pages
+| Item | Status |
+|---|---|
+| IAM least privilege per function | ✅ three roles, scoped resources |
+| Secrets out of code and function config | ✅ Secrets Manager, runtime fetch |
+| S3 public access | ✅ fully blocked, no bucket policy |
+| XSS escaping in notification emails | ✅ tested, all lead fields escaped |
+| Rate limiting on `/lead` | ⚠️ in-memory, per instance — moves to DynamoDB with scale |
+| Authentication on `/chat` and `/lead` | ❌ **public; planned Phase 2** |
+| CORS origin restriction | ❌ currently `*`; planned Phase 2 |
+| Deploy credentials | ⚠️ root used during the hackathon; IAM role planned |
 
-`/privacidad`, `/terminos`, `/cookies`, `/reembolsos` (and their English
-counterparts) render from `src/content/legal.ts`, which holds the four policies
-in both languages.
+---
 
-> These are **reference drafts written for this MVP, not legal advice.** They
-> follow the structure Colombian law expects — Ley 1581 de 2012 on personal data
-> protection, and the distance-sales withdrawal right in Decreto 1074 de 2015 —
-> but they must be reviewed by a lawyer before being published as binding policy.
-> The pages say so on screen.
+## 🏆 Why This Should Win
 
-## Contact form and Resend
+1. **The accuracy claim is falsifiable.** A holdout backtest against a baseline,
+   with the arithmetic in the repo and the tests that assert it.
+2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
+   owns the language and the actions.
+3. **The claims are machine-checked.** 88 automated checks run against the
+   deployed system, not against a local build.
+4. **The deployment is reproducible.** One script, one CloudFormation template,
+   from clean checkout to live URL.
+5. **The submission is honest.** Roadmap is labelled roadmap. Security debt is
+   listed. We publish case studies when they are signed, not before.
 
-The form posts to `POST /lead` on our own API. The Resend key lives in AWS
-Secrets Manager (`atelier-predict/lead-resend`) and is fetched at runtime, so it
-never appears in the Lambda configuration or the template.
+---
 
-```powershell
-./infra/sync-resend-secret.ps1    # once, copies the key from the ColombiaTIC env
-./infra/deploy.ps1
-```
+## 📄 License
 
-Lead notifications go to `enterprise@colombiatic.com.co` with the subject
-`Nuevo lead desde Atelier Predict (hackathon) — <empresa>` and a body row
-`Origen: atelier-predict-hackathon`, so hackathon leads are distinguishable from
-the colombiatic.com.co landing. The submitter also receives a confirmation.
+Apache License 2.0 — see [LICENSE](LICENSE).
 
-The pipeline mirrors the ColombiaTIC form: honeypot, 5 requests / 10 min per IP,
-HTML escaping, per-field length caps, and a 201 fake-success for bots.
+---
 
-## Security debt
+**Built for the AWS Zero to Shipped Hackathon 2026**
 
-Deliberate shortcuts for a hackathon, each one named so it is not mistaken for
-production posture:
-
-- **No authentication.** `/chat` is publicly callable and each request costs real
-  Bedrock tokens. Add API key or Cognito authorizer before exposing it.
-- **CORS allows `*`.** Tighten `AllowOrigins` in `infra/template.yaml` to the
-  Amplify URL.
-- **Root AWS credentials** were used to deploy. A judge looking at the account
-  sees the whole stack under root; move to an IAM user or role before demoing.
-- **Log retention is 14 days** and no prompt caching is enabled — the system
-  prompt is below Claude's minimum cacheable token count, so caching would never
-  activate.
-
-## License
-
-Apache 2.0 — see `LICENSE`.
+*Thank you to the AWS team for creating this opportunity.*
