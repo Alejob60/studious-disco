@@ -31,6 +31,13 @@ Parameters:
     Type: String
     Default: atelier-predict-lead.zip
     Description: Object key of the lead bundle (Secrets Manager only).
+  ForecastBucketName:
+    Type: String
+    Default: ''
+    Description: >
+      Optional. Name of the bucket holding the nightly TimesFM challenger forecast
+      (infra/template-timesfm.yaml). Leave empty to keep the champion as the only
+      forecast path, which is the deployed state.
   BedrockModelId:
     Type: String
     Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
@@ -68,6 +75,15 @@ Parameters:
     Description: >
       Optional base URL (without /demo-leads) for secondary lead persistence.
       Left empty the lead is still delivered by email.
+
+Conditions:
+  # Long form on purpose: nested short-form functions inside a flow sequence are
+  # not reliably parsed by every YAML loader CloudFormation uses.
+  ForecastBucketProvided:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref ForecastBucketName
+          - ''
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -125,6 +141,18 @@ Resources:
         # Least privilege: logs only. This function never touches another service.
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
       Description: Execution role for the forecast Lambda (logs only).
+      Policies: !If
+        - ForecastBucketProvided
+        - - PolicyName: read-precomputed-forecast
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Sid: ReadForecastOnly
+                  Effect: Allow
+                  Action: s3:GetObject
+                  # Exactly one object, no bucket listing, no writes.
+                  Resource: !Sub 'arn:${AWS::Partition}:s3:::${ForecastBucketName}/forecast.json'
+        - !Ref 'AWS::NoValue'
 
   ForecastFunction:
     Type: AWS::Lambda::Function
@@ -142,6 +170,15 @@ Resources:
       Timeout: 10
       MemorySize: 512
       Description: Holt-Winters demand forecast with a seasonal-naive backtest.
+      Environment:
+        Variables:
+          # Optional. When set, the function serves the nightly TimesFM challenger
+          # from this bucket instead, falling back to Holt-Winters whenever no
+          # fresh forecast.json is there. Left empty the champion is the only path
+          # and the function makes no AWS calls at all.
+          FORECAST_BUCKET: !If [ForecastBucketProvided, !Ref ForecastBucketName, '']
+          FORECAST_KEY: 'forecast.json'
+          FORECAST_MAX_AGE_SECONDS: '129600'
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO

@@ -30,5 +30,9 @@ backend/node_modules
 # Python venv for the TimesFM challenger benchmark
 .venv-tfm
 
+# Python bytecode from local benchmark and smoke runs
+__pycache__
+*.py[cod]
+
 # NOTE: benchmarks/out is NOT ignored on purpose. The dataset and the results
 # are the evidence of the champion/challenger run, not build noise.

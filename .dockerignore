@@ -1,0 +1,4 @@
+# Keep the build context small: the service needs two files and nothing else.
+*
+!services/timesfm/main.py
+!services/timesfm/requirements.txt

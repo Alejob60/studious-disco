@@ -23,7 +23,8 @@ param(
   [string]$LeadNotificationEmail = 'enterprise@colombiatic.com.co',
   [string]$LeadFromEmail = 'ColombiaTIC <onboarding@colombiatic.com.co>',
   [string]$LeadSourceTag = 'atelier-predict-hackathon',
-  [string]$CrmApiBase = '',
+[string]$CrmApiBase = '',
+  [string]$ForecastBucketName = '',
   [switch]$SkipDeploy
 )
 
@@ -34,9 +35,16 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $repoRoot 'backend'
 $stagingDir = Join-Path $repoRoot 'infra\.staging'
 $awsArgs = @('--region', $Region, '--profile', $Profile)
-# One bundle per function. The forecast function ships no AWS SDK, so it went from
-# a 2.4 MB download to roughly 22 KB on the path that runs on every page load.
+# One bundle per function. By default the forecast function ships no AWS SDK, so it
+# goes from a 2.4 MB download to roughly 10 KB zipped on the path that runs on every
+# page load. Pointing it at a bucket switches the TimesFM challenger on, which needs
+# the S3 SDK and costs that bundle about 8.4 MB: an explicit trade, so it is opt-in.
 $Functions = @('forecast', 'agent', 'lead')
+$bundleArgs = @()
+if ($ForecastBucketName) {
+  $bundleArgs += '--with-s3'
+  Write-Host 'Forecast bucket set: packaging the S3 SDK for the challenger path.' -ForegroundColor Yellow
+}
 
 Write-Host "`n==> 1/4 Verifying AWS credentials" -ForegroundColor Cyan
 aws sts get-caller-identity @awsArgs | Out-Null
@@ -45,7 +53,7 @@ $account = (aws sts get-caller-identity @awsArgs --query Account --output text).
 Write-Host "    account $account in $Region" -ForegroundColor DarkGray
 
 Write-Host "`n==> 2/4 Bundling each function separately" -ForegroundColor Cyan
-node (Join-Path $repoRoot 'scripts\bundle-functions.mjs') $backendDir $stagingDir
+node (Join-Path $repoRoot 'scripts\bundle-functions.mjs') $backendDir $stagingDir @bundleArgs
 if ($LASTEXITCODE -ne 0) { throw 'Bundle build failed.' }
 
 # Content hash per bundle: CloudFormation only diffs the S3 key, so a fixed key
@@ -110,7 +118,8 @@ $paramList = @(
   "ParameterKey=LeadNotificationEmail,ParameterValue=$LeadNotificationEmail",
   "ParameterKey=LeadFromEmail,ParameterValue=$LeadFromEmail",
   "ParameterKey=LeadSourceTag,ParameterValue=$LeadSourceTag",
-  "ParameterKey=CrmApiBase,ParameterValue=$CrmApiBase"
+  "ParameterKey=CrmApiBase,ParameterValue=$CrmApiBase",
+"ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName"
 )
 
 $stackExists = (aws cloudformation describe-stacks @awsArgs --stack-name $StackName --query 'Stacks[0].StackId' --output text 2>$null)

@@ -104,6 +104,9 @@ Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
   │
   ├── GET  /forecast ──► atelier-predict-forecast  (512 MB / 10 s)
   │                        Holt-Winters + backtest. No AWS calls at all.
+  │                        If FORECAST_BUCKET is set it prefers a fresh
+  │                        TimesFM record from S3 and falls back to the
+  │                        champion on anything missing or stale.
   │
   ├── POST /chat ──────► atelier-predict-agent     (1024 MB / 28 s)
   │                        Bedrock Converse + tool use
@@ -115,6 +118,17 @@ Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
                                     │
                                     ▼
                     enterprise@colombiatic.com.co  (tagged: atelier-predict-hackathon)
+
+Not deployed — see "Built, not deployed" above. In a separate stack so the
+dashboard costs nothing without it:
+
+EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
+                                                         TimesFM 2.5
+                                                          │
+                          forecast.json ◄──────────────────┘
+                                │
+                                ▼
+                  forecast Lambda reads it if fresh
 ```
 
 | Service | Role |
@@ -307,15 +321,51 @@ TimesFM weights up to 2.5 are Apache-2.0 (commercial self-hosting permitted);
 3.0 weights are non-commercial, so 2.5 is the newest version we can host
 ourselves. Full write-up in [`benchmarks/README.md`](benchmarks/README.md).
 
+### 🏗️ Built, not deployed — the nightly challenger pipeline
+
+The architecture above is implemented in the repo and validated, but **it is not
+running in production**. App Runner bills for the time a service exists rather
+than the time it is used, roughly $60–90/month at 1 vCPU / 4 GB with `MinSize 1`,
+and we did not want to commit the team to that spend without a decision.
+
+| Piece | Location | State |
+|---|---|---|
+| FastAPI inference service | [`services/timesfm/main.py`](services/timesfm/main.py) | 16/16 local smoke checks pass |
+| Container image | [`services/timesfm/Dockerfile`](services/timesfm/Dockerfile) | written, never built (Docker was off) |
+| Nightly orchestrator | [`backend/batch/index.js`](backend/batch/index.js) | bundled, 20 tests green |
+| AWS stack | [`infra/template-timesfm.yaml`](infra/template-timesfm.yaml) | passes `validate-template` |
+| One-command deploy | [`infra/deploy-timesfm.ps1`](infra/deploy-timesfm.ps1) | written, never run |
+
+Two decisions in it are worth reading even though it is switched off, because
+both are about not letting the challenger damage the champion:
+
+- **The challenger cannot take the endpoint down.** A fresh, well-formed
+  `forecast.json` wins; anything missing, stale, hash-mismatched or malformed
+  falls through to Holt-Winters. This is pinned by tests, including one that sets
+  `FORECAST_BUCKET` against a bundle that has no S3 SDK and asserts `/forecast`
+  still answers 200.
+- **The champion stays fast by default.** Reading S3 pulls in the AWS SDK, which
+  takes the forecast bundle from **13 KB to 2,911 KB**. So the SDK is packaged
+  only when you opt in: `node scripts/bundle-functions.mjs backend out --with-s3`.
+  The deployed function ships no SDK at all and makes no AWS call on any request.
+
+To turn it on, once the spend is approved:
+
+```bash
+./infra/deploy-timesfm.ps1 -ImageTag 1.0.0     # builds, pushes, deploys, triggers once
+./infra/deploy.ps1 -ForecastBucketName <bucket-from-the-output>
+```
+
 ### 💡 Phase 3 — Month 2–3 *(aspiration)*
 - WhatsApp Business API so `activate_campaign` reaches a real audience
 - Multi-tenant architecture and per-customer model selection
-- Nightly TimesFM job on App Runner + EventBridge, serving the precomputed forecast
 - Per-customer model selection: champion by default, challenger where it wins
 
 > **On our roadmap claims:** the items above are intentions, not achievements.
 > Anything labelled *shipped* in this README is running in production right now
-> and can be verified with the commands shown.
+> and can be verified with the commands shown. The nightly TimesFM job is the one
+> exception: it is **built but not deployed**, because it costs money to keep
+> switched on. See the section above for exactly what is missing.
 
 ---
 

@@ -1,0 +1,323 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Atelier Predict - optional TimesFM 2.5 challenger pipeline.
+
+  This stack is SEPARATE from the main one (infra/template.yaml) on purpose. It
+  costs money every minute it runs, because App Runner keeps the container warm
+  for the inference service. The dashboard is fully functional without it: the
+  forecast Lambda falls back to the Holt-Winters champion whenever this pipeline
+  has not published a fresh forecast.
+
+  Flow:
+    EventBridge schedule -> batch Lambda -> App Runner (TimesFM 2.5) -> S3
+                                                forecast.json
+    forecast Lambda reads forecast.json and serves it when fresh
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: >
+      ECR image URI for the TimesFM service, e.g.
+      123456789012.dkr.ecr.us-east-1.amazonaws.com/atelier-predict-timesfm:1.0.0
+      Build it with: docker build -t atelier-predict-timesfm:1.0.0 -f services/timesfm/Dockerfile .
+  ArtifactBucket:
+    Type: String
+    Description: S3 bucket holding the batch Lambda bundle (created by infra/deploy-batch.ps1).
+  CodeKey:
+    Type: String
+    Default: atelier-predict-batch.zip
+    Description: Object key of the batch Lambda bundle.
+  ScheduleExpression:
+    Type: String
+    Default: cron(30 4 * * ? *)
+    Description: >
+      UTC cron for the nightly refresh. 04:30 UTC is 23:30 in Colombia, after
+      the retail day closes and before the dashboard is used.
+  ForecastBucketName:
+    Type: String
+    Default: ''
+    Description: >
+      Name for the forecast bucket. Leave empty to let CloudFormation generate one.
+  CpuSize:
+    Type: String
+    Default: '1 vCPU'
+    AllowedValues: ['0.25 vCPU', '0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU']
+  MemorySize:
+    Type: String
+    Default: '4 GB'
+    Description: >
+      200M fp32 parameters plus PyTorch runtime need roughly 2 GB resident. 4 GB
+      is the smallest size that leaves headroom for a 512-point context.
+
+Conditions:
+  # Long form on purpose: nested short-form functions inside a flow sequence are
+  # not reliably parsed by every YAML loader CFN uses.
+  BucketNameProvided:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref ForecastBucketName
+          - ''
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Forecast storage
+  # ---------------------------------------------------------------------------
+  ForecastBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !If [BucketNameProvided, !Ref ForecastBucketName, !Ref 'AWS::NoValue']
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # Forecasts are superseded daily; keeping a year of them has no value and
+      # the lifecycle rule also prevents the bucket growing without bound.
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-forecasts
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  # ---------------------------------------------------------------------------
+  # ECR: where the image lives
+  # ---------------------------------------------------------------------------
+  ImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: atelier-predict-timesfm
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EmptyOnDelete: false
+      LifecyclePolicy:
+        # Each build pushes a tag; keep the last few and let the rest go, or the
+        # repository grows by ~1.5 GB per build.
+        LifecyclePolicyText: !Sub |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep the 5 most recent images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+  # ---------------------------------------------------------------------------
+  # Inference service on App Runner
+  # ---------------------------------------------------------------------------
+  TimesfmAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # App Runner requires its baseline ECR permissions on the task role.
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSAppRunnerECRAccessRole'
+      Description: Task role for the TimesFM service. Inference needs no AWS API access.
+
+  TimesfmService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: atelier-predict-timesfm
+      SourceConfiguration:
+        ImageRepository:
+          ImageConfiguration:
+            Port: '8080'
+            Runtime: python311
+            # The weights are baked in and torch is CPU-only, so the declared
+            # runtime must be old enough for the python:3.12-slim base image.
+            StartCommand: >-
+              uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
+              --timeout-keep-alive 75
+            EnvironmentVariables:
+              - Name: TIMESFM_REPO
+                Value: google/timesfm-2.5-200m-pytorch
+              - Name: HF_HUB_OFFLINE
+                Value: '1'
+              - Name: OMP_NUM_THREADS
+                Value: '1'
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+      AutoScalingConfiguration:
+        MinSize: 1
+        MaxSize: 2
+        # Inference is ~2 s. Scaling out helps a burst but costs another warm
+        # instance, so the target stays low.
+        TargetValue: 50
+        MaxConcurrency: 1
+      HealthCheckConfiguration:
+        HealthCheckPath: /health
+        HealthCheckInterval: 30
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeout: 5
+        HealthyThresholdCount: 1
+        UnhealthyThresholdCount: 3
+      InstanceConfiguration:
+        Cpu: !Ref CpuSize
+        Memory: !Ref MemorySize
+      NetworkConfiguration:
+        IngressConfiguration:
+          - IsPubliclyAccessible: true
+        EgressConfiguration:
+          EgressType: DEFAULT
+          EgressIpMode: NAT
+      Tags:
+        - Key: purpose
+          Value: atelier-predict-forecast-challenger
+        - Key: cost
+          Value: 'billed continuously while the service exists'
+
+  # ---------------------------------------------------------------------------
+  # Nightly orchestrator
+  # ---------------------------------------------------------------------------
+  ForecastBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ForecastBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ForecastBucket.Arn
+              - !Sub '${ForecastBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
+  BatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/atelier-predict-batch
+      RetentionInDays: 14
+
+  BatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: Reads and writes the forecast object, and calls the inference service.
+      Policies:
+        - PolicyName: forecast-bucket
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadHistoryAndWriteForecast
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                # Scoped to the two objects this function touches.
+                Resource: !Sub '${ForecastBucket.Arn}/forecast.json'
+              - Sid: ReadUploadedHistory
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${ForecastBucket.Arn}/history.json'
+              - Sid: EnforceSse
+                Effect: Allow
+                Action: 's3:PutObject'
+                Resource: !Sub '${ForecastBucket.Arn}/forecast.json'
+                Condition:
+                  StringEquals:
+                    's3:x-amz-server-side-encryption': AES256
+
+  BatchFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: atelier-predict-batch
+      Runtime: nodejs22.x
+      Handler: batch/index.handler
+      Role: !GetAtt BatchRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref CodeKey
+      Timeout: 60
+      MemorySize: 512
+      Description: 'Nightly refresh: calls the TimesFM service and publishes the result.'
+      Environment:
+        Variables:
+          FORECAST_BUCKET: !Ref ForecastBucket
+          TIMESFM_SERVICE_URL: !GetAtt TimesfmService.ServiceUrl
+          FORECAST_HORIZON: '14'
+          TIMESFM_TIMEOUT_MS: '25000'
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+
+  # EventBridge cannot target App Runner, so the schedule invokes the Lambda.
+  BatchInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt BatchFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt NightlySchedule.Arn
+
+  NightlySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: atelier-predict-nightly-forecast
+      Description: Refreshes the challenger forecast from the TimesFM service.
+      ScheduleExpression: !Ref ScheduleExpression
+      State: ENABLED
+      Targets:
+        - Id: batch
+          Arn: !GetAtt BatchFunction.Arn
+
+Outputs:
+  TimesfmServiceUrl:
+    Description: Base URL of the TimesFM inference service.
+    Value: !GetAtt TimesfmService.ServiceUrl
+  ForecastBucket:
+    Description: Bucket holding forecast.json and the optional uploaded history.json.
+    Value: !Ref ForecastBucket
+  ImageRepositoryUri:
+    Description: Push the built image here.
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/atelier-predict-timesfm'
+  NightlyScheduleArn:
+    Description: EventBridge rule driving the refresh.
+    Value: !Ref NightlySchedule
+  CostWarning:
+    Description: Read this before leaving the stack running.
+    Value: >
+      App Runner bills for the time the service exists, not the time it is used.
+      With MinSize 1 the service costs roughly 60-90 USD per month at 1 vCPU / 4 GB
+      before request charges. The dashboard does not need any of this: the forecast
+      Lambda falls back to the Holt-Winters champion whenever no fresh forecast.json
+      exists.
+

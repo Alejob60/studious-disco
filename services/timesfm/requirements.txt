@@ -1,0 +1,15 @@
+# Pinned to the versions the champion-challenger benchmark actually ran against.
+# Unpinned ML dependencies are how a reproducible benchmark stops being
+# reproducible, so these are exact.
+#
+# torch is installed from the CPU wheel index in the Dockerfile, not PyPI:
+#   pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+# The CPU build is roughly 10x smaller and this service runs on App Runner CPU.
+
+timesfm==2.0.2
+fastapi==0.142.2
+uvicorn==0.54.0
+pydantic==2.13.5
+numpy==2.5.3
+safetensors==0.8.0
+huggingface_hub>=0.34,<2.1

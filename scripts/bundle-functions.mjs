@@ -19,13 +19,27 @@ import { builtinModules } from 'node:module'
 
 const backendDir = resolve(process.argv[2] ?? 'backend')
 const outDir = resolve(process.argv[3] ?? 'infra/.staging')
+
+// The S3 SDK adds roughly 2 MB to the forecast bundle, which is the one function
+// whose cold start was optimised down to a few kilobytes. The challenger read is
+// guarded by FORECAST_BUCKET, so the SDK is only packaged when that pipeline is
+// actually being deployed:
+//   node scripts/bundle-functions.mjs                       champion only (default)
+//   node scripts/bundle-functions.mjs backend out --with-s3   challenger enabled
+const withS3 = process.argv.includes('--with-s3')
 const rootModules = join(backendDir, 'node_modules')
 
 // entry is relative to the bundle root; shared is copied into every bundle.
 const FUNCTIONS = [
-  { name: 'forecast', entry: 'forecast/index.js', needsShared: true, packages: [] },
+  {
+    name: 'forecast',
+    entry: 'forecast/index.js',
+    needsShared: true,
+    packages: withS3 ? ['@aws-sdk/client-s3'] : [],
+  },
   { name: 'agent', entry: 'agent/index.js', needsShared: true, packages: ['@aws-sdk/client-bedrock-runtime'] },
   { name: 'lead', entry: 'lead/index.js', needsShared: true, packages: ['@aws-sdk/client-secrets-manager'] },
+  { name: 'batch', entry: 'batch/index.js', needsShared: true, packages: ['@aws-sdk/client-s3'] },
 ]
 
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
