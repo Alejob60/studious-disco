@@ -144,6 +144,15 @@ Resources:
       RouteKey: GET /forecast
       Target: !Sub 'integrations/${ForecastIntegration}'
 
+  # The base URL answers with a self-describing index of the API, served by the
+  # forecast function because that function makes no AWS calls.
+  IndexRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: GET /
+      Target: !Sub 'integrations/${ForecastIntegration}'
+
   # ---------------------------------------------------------------------------
   # Agent function: Claude on Bedrock with tool use.
   # ---------------------------------------------------------------------------
@@ -329,7 +338,7 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: Base URL for the Atelier Predict API.
+    Description: Base URL for the Atelier Predict API. GET on this path returns a service index.
     # The $default stage needs no stage segment in the URL.
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
   ForecastEndpoint:

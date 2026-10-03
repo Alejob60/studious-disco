@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node --test backend/test/",
-    "test:backend": "node --test backend/test/forecast-engine.test.js backend/test/lead-validation.test.js backend/test/tool-validation.test.js",
+    "test:backend": "node --test backend/test/forecast-engine.test.js backend/test/lead-validation.test.js backend/test/tool-validation.test.js backend/test/service-info.test.js",
     "verify:api": "node scripts/verify-api.mjs",
     "verify:integration": "node scripts/verify-integration.mjs",
     "verify": "npm run typecheck && npm run test:backend",

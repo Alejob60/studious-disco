@@ -1,4 +1,5 @@
 const { buildForecastReport, buildSyntheticHistory } = require('../shared/forecast-engine.js')
+const { describeApi } = require('../shared/service-info.js')
 
 // CORS is configured on the HTTP API itself (infra/template.yaml). Adding these
 // headers here too would produce duplicate Access-Control-* values and browsers
@@ -20,6 +21,12 @@ const MIN_HISTORY = 28
  */
 async function handler(event) {
   try {
+    // `GET /` is the API index. It answers on the forecast function because that
+    // function makes no AWS calls at all, so it is the cheapest place to host it.
+    if (isIndexRequest(event)) {
+      return respond(200, describeApi(originOf(event)))
+    }
+
     const params = event.queryStringParameters ?? {}
 
     const horizon = clamp(Number(params.horizon) || 14, 1, MAX_HORIZON)
@@ -52,6 +59,25 @@ async function handler(event) {
 
 function respond(statusCode, payload) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(payload) }
+}
+
+/** True for the bare root path, whether routing came from a route key or a raw path. */
+function isIndexRequest(event) {
+  const routeKey = event.requestContext?.http?.routeKey
+  if (routeKey) return routeKey === 'GET /'
+  const path = event.rawPath ?? event.path ?? ''
+  return path === '/' || path === ''
+}
+
+/**
+ * Best-effort absolute origin, used only to build the llms.txt link in the index.
+ * Falling back to an empty string is preferable to failing the request.
+ */
+function originOf(event) {
+  const headers = event.headers ?? {}
+  const host = headers.host ?? headers.Host
+  if (!host) return ''
+  return `${headers['x-forwarded-proto'] ?? 'https'}://${host}`
 }
 
 /** Validates the optional request body and returns a clean numeric series. */

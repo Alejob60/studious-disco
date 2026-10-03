@@ -1,0 +1,235 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Atelier Predict – App Runner service for the Node.js backend,
+  a DynamoDB table for time-series prediction data, and an S3 bucket
+  for CSV uploads. IAM roles follow least-privilege.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: >
+      ECR image URI for the Node.js backend, e.g.
+      123456789012.dkr.ecr.us-east-1.amazonaws.com/atelier-predict:latest
+  Port:
+    Type: Number
+    Default: 3000
+    Description: Port the Node.js process listens on inside the container.
+  Cpu:
+    Type: String
+    Default: '1 vCPU'
+    AllowedValues: ['0.25 vCPU', '0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU']
+  Memory:
+    Type: String
+    Default: '2 GB'
+    AllowedValues: ['0.5 GB', '1 GB', '2 GB', '3 GB', '4 GB', '6 GB', '8 GB', '10 GB', '12 GB']
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB – time-series prediction data
+  # ---------------------------------------------------------------------------
+  PredictionsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: atelier-predict-predictions
+      BillingMode: PAY_PER_REQUEST
+      TableClass: STANDARD
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true          # AWS-managed key; no extra cost
+      AttributeDefinitions:
+        - AttributeName: pk       # e.g. "SKU#<sku>"
+          AttributeType: S
+        - AttributeName: sk       # e.g. "DATE#2025-01-15"
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+  # ---------------------------------------------------------------------------
+  # S3 – CSV uploads
+  # ---------------------------------------------------------------------------
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'atelier-predict-uploads-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: GOVERNANCE
+            Days: 30
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-raw-uploads
+            Status: Enabled
+            Prefix: uploads/
+            ExpirationInDays: 90   # raw CSVs are transient; adjust as needed
+
+  # Block any accidental public-access policy on the bucket.
+  UploadsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UploadsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyNonTLS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt UploadsBucket.Arn
+              - !Sub '${UploadsBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
+  # ---------------------------------------------------------------------------
+  # IAM – App Runner instance role (runtime permissions)
+  # ---------------------------------------------------------------------------
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Description: >
+        Runtime role for the App Runner service. Grants only the DynamoDB
+        operations and S3 object operations the backend actually needs.
+      Policies:
+        - PolicyName: dynamo-predictions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PredictionsTableRW
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt PredictionsTable.Arn
+                  # Allow access to any GSIs on the same table.
+                  - !Sub '${PredictionsTable.Arn}/index/*'
+        - PolicyName: s3-uploads
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: UploadsObjectRW
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                # Scoped to the uploads/ prefix only; the backend never needs
+                # to list the whole bucket or touch other prefixes.
+                Resource: !Sub '${UploadsBucket.Arn}/uploads/*'
+              - Sid: UploadsListPrefix
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt UploadsBucket.Arn
+                Condition:
+                  StringLike:
+                    's3:prefix': 'uploads/*'
+
+  # ---------------------------------------------------------------------------
+  # IAM – App Runner access role (ECR pull, used only during build/deploy)
+  # ---------------------------------------------------------------------------
+  AppRunnerAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Description: >
+        Allows App Runner to pull the container image from ECR.
+        Uses the AWS-managed policy; no custom permissions needed.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+
+  # ---------------------------------------------------------------------------
+  # App Runner service
+  # ---------------------------------------------------------------------------
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: atelier-predict-backend
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerAccessRole.Arn
+        AutoDeploymentsEnabled: true   # redeploy on new ECR push
+        ImageRepository:
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: !Ref Port
+            RuntimeEnvironmentVariables:
+              - Name: PREDICTIONS_TABLE
+                Value: !Ref PredictionsTable
+              - Name: UPLOADS_BUCKET
+                Value: !Ref UploadsBucket
+              - Name: NODE_ENV
+                Value: production
+      InstanceConfiguration:
+        Cpu: !Ref Cpu
+        Memory: !Ref Memory
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /health
+        Interval: 10
+        Timeout: 5
+        HealthyThreshold: 1
+        UnhealthyThreshold: 3
+      ObservabilityConfiguration:
+        ObservabilityEnabled: true
+
+Outputs:
+  ServiceUrl:
+    Description: HTTPS URL of the App Runner service (no trailing slash).
+    Value: !Sub 'https://${AppRunnerService.ServiceUrl}'
+  PredictionsTableName:
+    Description: DynamoDB table name injected as PREDICTIONS_TABLE env var.
+    Value: !Ref PredictionsTable
+  UploadsBucketName:
+    Description: S3 bucket name injected as UPLOADS_BUCKET env var.
+    Value: !Ref UploadsBucket
+  InstanceRoleArn:
+    Description: ARN of the App Runner instance role (for auditing).
+    Value: !GetAtt AppRunnerInstanceRole.Arn
