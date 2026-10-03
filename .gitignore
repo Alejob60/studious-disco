@@ -26,3 +26,9 @@ dist-ssr
 # Deployment staging artifacts
 infra/.staging
 backend/node_modules
+
+# Python venv for the TimesFM challenger benchmark
+.venv-tfm
+
+# NOTE: benchmarks/out is NOT ignored on purpose. The dataset and the results
+# are the evidence of the champion/challenger run, not build noise.

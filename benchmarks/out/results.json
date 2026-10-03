@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-03T15:45:26.323Z",
+  "challenger": {
+    "model": "google/timesfm-2.5-200m-pytorch",
+    "license": "Apache-2.0 weights (commercial self-hosting permitted)",
+    "wapePct": 5.613,
+    "maeUnits": 10.0954,
+    "modelLoadSeconds": 5.81,
+    "inferenceMs": 1878.4,
+    "predictions": [
+      230.2027,
+      144.4361,
+      176.0355,
+      176.6408,
+      176.0113,
+      182.9247,
+      212.8653,
+      227.3313,
+      140.1794,
+      172.2547,
+      173.9599,
+      173.0632,
+      185.6773,
+      213.1788
+    ]
+  },
+  "champion": {
+    "name": "holt-winters-additive",
+    "wapePct": 7.7669,
+    "maeUnits": 13.9693,
+    "predictions": [
+      240.6874,
+      141.8021,
+      175.9513,
+      181.4104,
+      180.1423,
+      192.307,
+      223.4715,
+      244.6018,
+      145.7165,
+      179.8657,
+      185.3248,
+      184.0567,
+      196.2214,
+      227.3859
+    ]
+  },
+  "baseline": {
+    "name": "seasonal-naive",
+    "wapePct": 10.1668,
+    "predictions": [
+      263,
+      154,
+      184,
+      198,
+      160,
+      192,
+      213,
+      263,
+      154,
+      184,
+      198,
+      160,
+      192,
+      213
+    ]
+  },
+  "actual": [
+    248,
+    116,
+    166,
+    176,
+    165,
+    174,
+    211,
+    238,
+    131,
+    162,
+    166,
+    169,
+    174,
+    222
+  ],
+  "verdict": {
+    "qualifies": true,
+    "wapeDeltaPoints": 2.1539,
+    "decision": "adopt challenger"
+  }
+}

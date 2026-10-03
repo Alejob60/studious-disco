@@ -236,21 +236,67 @@ peticiones. Eso es justo la condición para que el prompt cache de Bedrock
 funcione cuando se active; hoy no se activa porque el prompt está por debajo del
 mínimo cacheable de Sonnet, pero la estructura ya está.
 
-### Fase B — Retador TimesFM (3–5 días, opt-in)
+### Fase B — Retador TimesFM — **B.1 y B.2 COMPLETADAS**
 
-| # | Tarea | Riesgo | Nota |
-| --- | --- | --- | --- |
-| B.1 | Fix local: `timesfm==2.0.2` en Python 3.12 | — | PyTorch 3.14 existe (2.14.1) pero verificar compatibility |
-| B.2 | `forecast` comparativo sobre el mismo holdout | — | Un solo script, salida WAPE de ambos |
-| B.3 | Si gana: microservicio FastAPI + Dockerfile | — | Endurecer el del plan: `--workers 1`, health check, model load en lifespan |
-| B.4 | Desplegar en App Runner | — | Solo si B.2 dice que gana |
-| B.5 | `GET /forecast?engine=timesfm` con feature flag | — | Campeón sigue por defecto |
-| B.6 | Documentar el resultado, gane o pierda | — | Con el número, sea cual sea |
+**El resultado cambió la recomendación.** Details en `benchmarks/README.md`.
 
-**Sobre B.6:** publicar "evaluamos TimesFM 2.5 y con **nuestro** holdout dio WAPE
-X frente a 7.77% de Holt-Winters, así que seguimos con el campeón" es una
-respuesta fuerte ante un juez técnico. Publicar solo "usamos foundation models"
-es débil.
+| Modelo | WAPE (holdout 14 d) | MAE |
+| --- | --- | --- |
+| seasonal-naive (baseline) | 10.17 % | — |
+| Holt-Winters (campeón) | 7.77 % | 13.97 |
+| **TimesFM 2.5 (retador)** | **5.61 %** | **10.10** |
+
+**El retador gana por 2.15 puntos de WAPE (27.7 % relativo).** Mi hipótesis
+inicial —"no migres porque los cold starts lo empeoran"— era correcta sobre el
+riesgo pero **incorrecta sobre el resultado**: TimesFM es заметablemente más
+preciso en estos datos.
+
+Donde el campeón sigue ganando es en todo lo demás:
+
+| | Campeón | Retador |
+| --- | --- | --- |
+| Inferencia | **1 ms** (cacheado) | 1.878–2.651 ms |
+| Carga del modelo | 0 ms | 4,6–5,8 s |
+| Motor | Node puro en Lambda | Python + PyTorch en App Runner |
+| Coste en reposo | ~$0 (escala a cero) | instancia siempre activa |
+
+**Decisión revisada: no reemplazar, sino separar por presupuesto de latencia.**
+
+```
+   /forecast (síncrono)  ──►  Holt-Winters en Lambda · 1 ms · escala a cero
+
+   EventBridge nightly ──►  App Runner: TimesFM 2.5 · ~2 s sin nadie esperando
+                              └─► S3: forecast.json
+   /forecast ────────────────►  lee el precomputado (misma ruta, mejor WAPE)
+```
+
+El usuario recibe **5.61 % de WAPE con la latencia del camino caliente.**
+
+Esto además invalida la frase que yo mismo había escrito en el README del
+hackathon —*"Lo adoptaremos solo si gana"*— porque **sí ganó**. Corregir esa línea
+antes de que un juez la lea es parte del trabajo.
+
+#### B.1 · Detalles de implementación que solo aparecen al ejecutar
+
+| Hallazgo | Consecuencia |
+| --- | --- |
+| El paquete PyPI `timesfm==2.0.2` **incluye el código de la 2.5** | `timesfm.TimesFm` no existe; hay que usar `TimesFM_2p5_200M_torch` |
+| La 2.5 eliminó el parámetro `freq` | El snippet `tfm.forecast([x], freq="D")` que circula en tutoriales lanza `TypeError` |
+| `forecast()` exige `compile()` previo | Lanza `RuntimeError` incluso con `torch_compile=False` |
+| Checkpoint por defecto: `google/timesfm-2.5-200m-pytorch` | Apache-2.0, la última versión comercialmente permisiva por vía propia |
+
+El dataset se exporta desde Node (`scripts/export-benchmark-dataset.mjs`) para
+garantizar entradas byte-idénticas: reimplementar el PRNG `mulberry32` en Python
+habría introducido una divergencia silenciosa por coma flotante.
+
+#### B.3–B.6 — Pendientes, y ahora con más justificación
+
+| # | Tarea | Cambio respecto a lo planificado |
+| --- | --- | --- |
+| B.3 | FastAPI + Dockerfile **de 2.5**, no la config de 2.0 | El plan original usaba la API obsoleta |
+| B.4 | App Runner, mínimo 2 GB RAM | Igual, pero ahora con un número que lo justifica |
+| B.5 | **Cambiada**: nada de `?engine=timesfm` síncrono | Ahora es un job nightly, no un endpoint |
+| B.6 | Publicar el número en el README | **Urgente**: el README dice hoy que no lo hemos evaluado |
 
 ### Fase C — Capa del agente (1 día)
 

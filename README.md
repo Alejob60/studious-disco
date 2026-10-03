@@ -278,12 +278,40 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Real customer CSV via the existing `POST /forecast {"history": [...]}` contract
 - IAM deploy role replacing the root credentials used so far
 
+### 🧪 Evaluated — TimesFM 2.5 vs our champion
+
+We benchmarked Google's time-series foundation model against our Holt-Winters
+implementation on the **same 14-day holdout**, with the same metric:
+
+| Model | WAPE | MAE (units/day) |
+|---|---|---|
+| seasonal-naive (baseline) | 10.17 % | — |
+| Holt-Winters (our champion) | 7.77 % | 13.97 |
+| **TimesFM 2.5 (challenger)** | **5.61 %** | **10.10** |
+
+**The challenger won by 2.15 points of WAPE (27.7 % relative).**
+
+It costs ~2 s of CPU inference against our 1 ms, so we are not putting it on the
+synchronous path. Instead we will run it on a nightly schedule, store the
+precomputed forecast, and serve it from the same fast endpoint — which means the
+user gets the foundation model's accuracy at the champion's latency.
+
+Reproduce it yourself:
+
+```bash
+node scripts/export-benchmark-dataset.mjs
+.venv-tfm/Scripts/python benchmarks/timesfm_benchmark.py
+```
+
+TimesFM weights up to 2.5 are Apache-2.0 (commercial self-hosting permitted);
+3.0 weights are non-commercial, so 2.5 is the newest version we can host
+ourselves. Full write-up in [`benchmarks/README.md`](benchmarks/README.md).
+
 ### 💡 Phase 3 — Month 2–3 *(aspiration)*
-- **Time-series foundation model** (TimeFM or equivalent) benchmarked against our
-  Holt-Winters baseline on the same holdout. We will adopt it only if it wins on
-  our data — and we will publish the comparison either way.
 - WhatsApp Business API so `activate_campaign` reaches a real audience
 - Multi-tenant architecture and per-customer model selection
+- Nightly TimesFM job on App Runner + EventBridge, serving the precomputed forecast
+- Per-customer model selection: champion by default, challenger where it wins
 
 > **On our roadmap claims:** the items above are intentions, not achievements.
 > Anything labelled *shipped* in this README is running in production right now
