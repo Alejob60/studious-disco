@@ -74,10 +74,13 @@ export const isApiConfigured = Boolean(API_URL)
 /** True when the API answered, so callers can label the data source. */
 export type FetchResult<T> = { data: T; source: ForecastSource }
 
+/** Matches HISTORY_WINDOW in forecast-view: ask for exactly what the chart draws. */
+const HISTORY_WINDOW = 21
+
 export async function fetchForecast(signal?: AbortSignal): Promise<ForecastResponse> {
   if (!API_URL) throw new Error('VITE_API_URL is not set')
 
-  const response = await fetch(`${API_URL}/forecast`, { signal })
+  const response = await fetch(`${API_URL}/forecast?window=${HISTORY_WINDOW}`, { signal })
   if (!response.ok) throw new Error(`forecast request failed: ${response.status}`)
 
   return response.json() as Promise<ForecastResponse>
