@@ -1,28 +1,42 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Atelier Predict - optional TimesFM 2.5 challenger pipeline.
+  Atelier Predict - optional time-series challenger pipeline.
 
-  This stack is SEPARATE from the main one (infra/template.yaml) on purpose. It
-  costs money every minute it runs, because App Runner keeps the container warm
-  for the inference service. The dashboard is fully functional without it: the
-  forecast Lambda falls back to the Holt-Winters champion whenever this pipeline
-  has not published a fresh forecast.
+  This stack is SEPARATE from the main one (infra/template.yaml) on purpose. The
+  forecast function falls back to the Holt-Winters champion whenever this
+  pipeline has not published a fresh forecast, so nothing here is required for
+  the dashboard to work.
+
+  Lambda container image, not App Runner, because App Runner bills for the time a
+  service exists and its AutoScalingConfiguration cannot scale to zero. A
+  container function bills per request only, which is the right shape for a job
+  that runs once a night.
 
   Flow:
-    EventBridge schedule -> batch Lambda -> App Runner (TimesFM 2.5) -> S3
-                                                forecast.json
+    EventBridge schedule -> batch Lambda -> inference Lambda (container)
+                                              -> S3 forecast.json
     forecast Lambda reads forecast.json and serves it when fresh
 
 Parameters:
   ImageUri:
     Type: String
     Description: >
-      ECR image URI for the TimesFM service, e.g.
-      123456789012.dkr.ecr.us-east-1.amazonaws.com/atelier-predict-timesfm:1.0.0
-      Build it with: docker build -t atelier-predict-timesfm:1.0.0 -f services/timesfm/Dockerfile .
+      ECR image URI for the inference service, e.g.
+      123456789012.dkr.ecr.us-east-1.amazonaws.com/atelier-predict-forecast-model:1.0.0
+  ImageRepositoryName:
+    Type: String
+    Default: atelier-predict-forecast-model
+    Description: >
+      Name of the ECR repository holding the image.
+
+      The repository is deliberately NOT a resource of this stack.
+      infra/deploy-timesfm.ps1 creates it so it can push the image before the
+      stack exists, and CloudFormation cannot adopt an existing resource under a
+      fixed name: AWS::EarlyValidation::ResourceExistenceCheck rejects the change
+      set outright. Verified by bisecting the template.
   ArtifactBucket:
     Type: String
-    Description: S3 bucket holding the batch Lambda bundle (created by infra/deploy-batch.ps1).
+    Description: S3 bucket holding the batch Lambda bundle (created by infra/deploy-timesfm.ps1).
   CodeKey:
     Type: String
     Default: atelier-predict-batch.zip
@@ -38,24 +52,31 @@ Parameters:
     Default: ''
     Description: >
       Name for the forecast bucket. Leave empty to let CloudFormation generate one.
-  CpuSize:
-    Type: String
-    Default: '2 vCPU'
-    AllowedValues: ['0.25 vCPU', '0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU']
+  InferenceMemoryMb:
+    Type: Number
+    Default: 3008
+    MinValue: 2048
+    MaxValue: 3008
     Description: >
-      2 vCPU with OMP_NUM_THREADS=1 is deliberate: measured inference was 6-12 s on
-      4 vCPU and 6.3-7.9 s on 2 vCPU with 2 threads, i.e. no measurable gain from
-      extra parallelism. Size up for headroom, not for throughput.
-  MemorySize:
-    Type: String
-    Default: '4 GB'
+      The 200M-parameter fp32 checkpoint plus the PyTorch runtime need roughly
+      2 GB resident. Verified locally in the image: ~2.0 GB filesystem, 883 MB of
+      which is the checkpoint.
+
+      3008 MB is the ceiling Lambda accepts here, not 10240: creating the function
+      with more fails with a constraint error. Verified by deploying.
+  InferenceTimeoutSeconds:
+    Type: Number
+    Default: 840
+    MinValue: 120
+    MaxValue: 900
     Description: >
-      The 200M fp32 checkpoint plus the PyTorch runtime need roughly 2 GB resident.
-      4 GB is the smallest size that leaves headroom for a 512-point context.
+      Measured locally: ~150 s to load the model plus 6-12 s of inference. The
+      first invocation of the day also pulls the image, which is why this is set
+      near the 15-minute ceiling rather than to the inference time alone.
 
 Conditions:
   # Long form on purpose: nested short-form functions inside a flow sequence are
-  # not reliably parsed by every YAML loader CFN uses.
+  # not reliably parsed by every YAML loader CloudFormation uses.
   BucketNameProvided:
     Fn::Not:
       - Fn::Equals:
@@ -96,39 +117,17 @@ Resources:
               DaysAfterInitiation: 1
 
   # ---------------------------------------------------------------------------
-  # ECR: where the image lives
-  # ---------------------------------------------------------------------------
-  ImageRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: atelier-predict-timesfm
-      ImageTagMutability: MUTABLE
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      EmptyOnDelete: false
-      LifecyclePolicy:
-        # Each build pushes a tag; keep the last few and let the rest go, or the
-        # repository grows by ~1.5 GB per build.
-        LifecyclePolicyText: !Sub |
-          {
-            "rules": [
-              {
-                "rulePriority": 1,
-                "description": "Keep the 5 most recent images",
-                "selection": {
-                  "tagStatus": "any",
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 5
-                },
-                "action": { "type": "expire" }
-              }
-            ]
-          }
 
   # ---------------------------------------------------------------------------
-  # Inference service on App Runner
+  # Inference: the model container, invoked once a night
   # ---------------------------------------------------------------------------
-  TimesfmAccessRole:
+  InferenceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/atelier-predict-forecast-model
+      RetentionInDays: 14
+
+  InferenceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -136,65 +135,61 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: tasks.apprunner.amazonaws.com
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        # App Runner requires its baseline ECR permissions on the task role.
-        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSAppRunnerECRAccessRole'
-      Description: Task role for the TimesFM service. Inference needs no AWS API access.
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: >
+        Pulls the container image and writes logs. Inference itself makes no AWS
+        API calls, so there is nothing else to grant.
+      Policies:
+        - PolicyName: pull-inference-image
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PullImageFromThisRepositoryOnly
+                Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                # Built from the parameter because the repository is not a resource
+                # of this stack. Scoped to one repository, not the whole account.
+                Resource: !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ImageRepositoryName}'
 
-  TimesfmService:
-    Type: AWS::AppRunner::Service
+  InferenceFunction:
+    Type: AWS::Lambda::Function
     Properties:
-      ServiceName: atelier-predict-timesfm
-      SourceConfiguration:
-        ImageRepository:
-          ImageConfiguration:
-            Port: '8080'
-            # Must not be older than the base image Python, and the pinned
-            # requirements need >= 3.12 (numpy 2.5.x), so 3.11 is not an option.
-            Runtime: python312
-            # The weights are baked in and torch is CPU-only.
-            StartCommand: >-
-              uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
-              --timeout-keep-alive 75
-            EnvironmentVariables:
-              - Name: TIMESFM_REPO
-                Value: google/timesfm-2.5-200m-pytorch
-              - Name: HF_HUB_OFFLINE
-                Value: '1'
-              - Name: OMP_NUM_THREADS
-                Value: '1'
-          ImageIdentifier: !Ref ImageUri
-          ImageRepositoryType: ECR
-      AutoScalingConfiguration:
-        MinSize: 1
-        MaxSize: 2
-        # Inference is ~2 s. Scaling out helps a burst but costs another warm
-        # instance, so the target stays low.
-        TargetValue: 50
-        MaxConcurrency: 1
-      HealthCheckConfiguration:
-        HealthCheckPath: /health
-        HealthCheckInterval: 30
-        HealthCheckProtocol: HTTP
-        HealthCheckTimeout: 5
-        HealthyThresholdCount: 1
-        UnhealthyThresholdCount: 3
-      InstanceConfiguration:
-        Cpu: !Ref CpuSize
-        Memory: !Ref MemorySize
-      NetworkConfiguration:
-        IngressConfiguration:
-          - IsPubliclyAccessible: true
-        EgressConfiguration:
-          EgressType: DEFAULT
-          EgressIpMode: NAT
-      Tags:
-        - Key: purpose
-          Value: atelier-predict-forecast-challenger
-        - Key: cost
-          Value: 'billed continuously while the service exists'
+      FunctionName: atelier-predict-forecast-model
+      PackageType: Image
+      Role: !GetAtt InferenceRole.Arn
+      Code:
+        ImageUri: !Ref ImageUri
+      # The container must listen on 0.0.0.0 or AWS_LAMBDA_FUNCTION_HANDLER
+      # will never reach it.
+      MemorySize: !Ref InferenceMemoryMb
+      Timeout: !Ref InferenceTimeoutSeconds
+      # Scratch space for the runtime. The default 512 MB is not enough headroom
+      # next to a 2 GB resident model on a 4 GB function.
+      EphemeralStorage:
+        Size: 2048
+      # No ReservedConcurrentExecutions on purpose: reserving here drops the
+      # account's unreserved concurrency below the AWS minimum of 10 while other
+      # functions exist in it. The orchestrator runs once a night, so a cap buys
+      # nothing that the schedule does not already provide.
+      Description: >-
+        Time-series foundation model inference. Invoked synchronously by the
+        batch job; the weights are baked into the image so it runs with no egress.
+      Environment:
+        Variables:
+          TIMESFM_REPO: google/timesfm-2.5-200m-pytorch
+          HF_HUB_OFFLINE: '1'
+          # One thread: measured 6-12 s on 4 vCPU and 6.3-7.9 s on 2 threads,
+          # so extra parallelism bought nothing measurable.
+          OMP_NUM_THREADS: '1'
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
 
   # ---------------------------------------------------------------------------
   # Nightly orchestrator
@@ -252,6 +247,19 @@ Resources:
                 Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub '${ForecastBucket.Arn}/history.json'
+              - Sid: DistinguishMissingHistory
+                Effect: Allow
+                # Without this, S3 answers GetObject on a missing key with 403
+                # AccessDenied naming s3:ListBucket instead of 404 NoSuchKey,
+                # because it will not reveal whether an object exists to a caller
+                # that cannot list. The history file is optional, so the caller has
+                # to be able to tell "not uploaded yet" from "denied".
+                Action: s3:ListBucket
+                Resource: !Sub '${ForecastBucket.Arn}'
+                Condition:
+                  StringLike:
+                    's3:prefix':
+                      - history.json
               - Sid: EnforceSse
                 Effect: Allow
                 Action: 's3:PutObject'
@@ -259,6 +267,16 @@ Resources:
                 Condition:
                   StringEquals:
                     's3:x-amz-server-side-encryption': AES256
+              - Sid: InvokeInference
+                Effect: Allow
+                Action: 'lambda:InvokeFunction'
+                # One function. No Condition on lambda:InvocationType: with the
+                # condition attached, the synchronous invoke is rejected outright
+                # ("not authorized to perform: lambda:InvokeFunction") even though
+                # the statement is present on the role. Scoping the resource to a
+                # single function already limits the blast radius, and this role
+                # belongs only to the orchestrator.
+                Resource: !GetAtt InferenceFunction.Arn
 
   BatchFunction:
     Type: AWS::Lambda::Function
@@ -270,23 +288,24 @@ Resources:
       Code:
         S3Bucket: !Ref ArtifactBucket
         S3Key: !Ref CodeKey
-      # Inference measured at 6-12 s with high variance, plus ~150 s of model load
-      # on a cold instance. 45 s leaves room without letting the Lambda hang.
-      Timeout: 180
+      # Must exceed the inference function's model load plus inference. Measured
+      # locally at ~150 s of load before the first prediction, so a 180 s ceiling
+      # here aborted the orchestrator mid-call.
+      Timeout: 420
       MemorySize: 512
-      Description: 'Nightly refresh: calls the TimesFM service and publishes the result.'
+      Description: 'Nightly refresh: calls the inference function and publishes the result.'
       Environment:
         Variables:
           FORECAST_BUCKET: !Ref ForecastBucket
-          TIMESFM_SERVICE_URL: !GetAtt TimesfmService.ServiceUrl
+          INFERENCE_FUNCTION_NAME: !Ref InferenceFunction
           FORECAST_HORIZON: '14'
-          TIMESFM_TIMEOUT_MS: '45000'
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
         SystemLogLevel: WARN
 
-  # EventBridge cannot target App Runner, so the schedule invokes the Lambda.
+  # The schedule targets the orchestrator, which is what decides whether a result is
+  # worth publishing. Invoking inference directly would skip that validation.
   BatchInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -307,25 +326,25 @@ Resources:
           Arn: !GetAtt BatchFunction.Arn
 
 Outputs:
-  TimesfmServiceUrl:
-    Description: Base URL of the TimesFM inference service.
-    Value: !GetAtt TimesfmService.ServiceUrl
   ForecastBucket:
     Description: Bucket holding forecast.json and the optional uploaded history.json.
     Value: !Ref ForecastBucket
   ImageRepositoryUri:
-    Description: Push the built image here.
-    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/atelier-predict-timesfm'
+    Description: Where the image was pushed from.
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepositoryName}'
+  InferenceFunctionName:
+    Description: Container function that runs the model. Invoked by the batch job.
+    Value: !Ref InferenceFunction
   NightlyScheduleArn:
     Description: EventBridge rule driving the refresh.
     Value: !Ref NightlySchedule
-  CostWarning:
-    Description: Read this before leaving the stack running.
+  CostProfile:
+    Description: Why this stack costs nothing while idle.
     Value: >
-      App Runner bills for the time the service exists, not the time it is used.
-      With MinSize 1 at 2 vCPU / 4 GB the service costs roughly 120-180 USD per
-      month before request charges, and the image is about 5 GB, so the first
-      deploy spends several minutes pulling it. The dashboard does not need any of
-      this: the forecast Lambda falls back to the Holt-Winters champion whenever
-      no fresh forecast.json exists.
+      A Lambda container function bills per request and scales to zero, so a
+      nightly schedule costs one invocation a day. App Runner was rejected for
+      this workload because it bills for the time a service exists and cannot
+      scale to zero. The 2 GB image pulls on the first invocation of the day,
+      which is why InferenceFunction timeout sits near the 15-minute ceiling.
+      Measured locally: ~150 s of model load plus 6-12 s of inference.
 

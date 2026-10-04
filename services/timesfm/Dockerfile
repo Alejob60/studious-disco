@@ -84,9 +84,14 @@ EXPOSE 8080
 # App Runner sets PORT; default to 8080 for local docker run.
 ENV PORT=8080
 
-# One worker on purpose: the model is resident in memory, so a second worker
-# would load a second copy for no throughput gain. Scale with instances instead.
+# awslambdaric, not uvicorn. Lambda sends an event to the runtime API rather than
+# making an HTTP request, so a bare uvicorn process starts happily and then returns
+# an empty payload for every invocation. The adapter serves as ASGI on 0.0.0.0:8080
+# and forwards each invocation as a request.
+#
+# One worker on purpose: the model is resident in memory, so a second worker would
+# load a second copy for no throughput gain.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=240s --retries=3 \
     CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
 
-CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1 --timeout-keep-alive 75"]
+CMD ["awslambdaric", "main:app", "--host", "0.0.0.0", "--port", "8080"]

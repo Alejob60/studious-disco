@@ -46,6 +46,12 @@ export function Header() {
               {t('nav.forecast')}
             </a>
             <a
+              href={`${base}#servicios`}
+              className="text-sm text-body transition-colors hover:text-gold"
+            >
+              {t('nav.services')}
+            </a>
+            <a
               href={`${base}#contacto`}
               className="text-sm text-body transition-colors hover:text-gold"
             >

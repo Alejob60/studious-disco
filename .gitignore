@@ -25,6 +25,7 @@ dist-ssr
 
 # Deployment staging artifacts
 infra/.staging
+infra/.staging-timesfm
 backend/node_modules
 
 # Python venv for the TimesFM challenger benchmark

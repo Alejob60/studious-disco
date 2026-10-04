@@ -7,6 +7,7 @@ import { Footer } from './components/Footer'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
 import { KpiCards } from './components/KpiCards'
+import { ServicesExplainer } from './components/ServicesExplainer'
 import { CookieConsent } from './components/legal/CookieConsent'
 import { ChartSkeleton } from './components/ui/ChartSkeleton'
 import { I18nProvider, isLocale, useI18n } from './i18n/I18nProvider'
@@ -67,8 +68,9 @@ function Landing() {
           peakDay={data.kpis.peakDay}
           peakUnits={data.kpis.peakUnits}
         />
-      </Suspense>
-      <AgentChat live={source === 'live'} />
+    </Suspense>
+    <ServicesExplainer />
+    <AgentChat live={source === 'live'} />
       <ContactForm />
     </>
   )

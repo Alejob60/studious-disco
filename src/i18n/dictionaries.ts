@@ -23,6 +23,7 @@ const es = {
   nav: {
     agent: 'Agente',
     forecast: 'Pronóstico',
+    services: 'Servicios',
     contact: 'Contacto',
     legal: 'Legal',
     skipToContent: 'Saltar al contenido',
@@ -44,6 +45,57 @@ const es = {
     title: 'Indicadores clave',
     model: 'Modelo: Holt-Winters estacional · período 7 días',
     vsWeek: 'vs. semana actual',
+  },
+  services: {
+    badge: 'Cómo funciona',
+    title: 'Tres servicios, una decisión',
+    subtitle:
+      'Cada pieza hace lo que mejor se le da. El pronóstico es instantáneo, el modelo fundacional se recalcula por la noche y el agente convierte ambos en acciones.',
+    layers: 'Capas',
+    items: [
+      {
+        name: 'Pronóstico instantáneo',
+        tag: 'Ruta caliente',
+        what: 'Proyecta la demanda de los próximos 14 días en ~1 ms.',
+        how: 'Un modelo estadístico ajustado dentro de la misma función que responde. Sin llamadas a otros servicios, sin esperas.',
+        proof: 'WAPE 7,77 % · backtest estacional',
+      },
+      {
+        name: 'Modelo fundacional',
+        tag: 'Recalculo nocturno',
+        what: 'Un modelo fundacional de series de tiempo, 200 millones de parámetros, entrenado con millones de series públicas.',
+        how: 'Corre una vez por la noche sobre el histórico completo y publica el resultado. La ruta de la mañana solo lo lee.',
+        proof: 'WAPE 5,61 % · 2,15 puntos mejor',
+      },
+      {
+        name: 'Agente con herramientas',
+        tag: 'Acción',
+        what: 'Convierte el pronóstico en una campaña o una orden de reposición.',
+        how: 'Lee el mismo dato que tú ves y propone la acción con cifras concretas. Tú confirmas antes de que salga.',
+        proof: 'Bedrock · 2 herramientas verificadas',
+      },
+    ],
+    winner: {
+      title: 'Por qué esto nos hace ganadores',
+      points: [
+        {
+          head: 'La precisión se demuestra, no se promete',
+          body: 'Publicamos el backtest y elHoldout exacto. Un juez puede reproducirlo con un comando. Esa es la diferencia entre afirmar y probar.',
+        },
+        {
+          head: 'Lo mejor de los dos mundos, no solo el mejor modelo',
+          body: 'El modelo grande aporta la precisión; el modelo estadístico aporta la latencia. Separados por presupuesto de latencia, no hay renuncia.',
+        },
+        {
+          head: 'El agente no inventa el dato',
+          body: 'Las herramientas solo pueden leer lo que el pronóstico ya calculó. Si el número no existe, la herramienta falla y el agente lo admite.',
+        },
+        {
+          head: 'Funciona sin depender de nosotros',
+          body: 'Si el modelo fundacional falla, el pronóstico instantáneo sigue respondiendo. Nunca hay un punto único de falla en la ruta del cliente.',
+        },
+      ],
+    },
   },
   chart: {
     reality: 'Realidad',
@@ -175,6 +227,7 @@ const en: Dictionary = {
   nav: {
     agent: 'Agent',
     forecast: 'Forecast',
+    services: 'Services',
     contact: 'Contact',
     legal: 'Legal',
     skipToContent: 'Skip to content',
@@ -196,6 +249,57 @@ const en: Dictionary = {
     title: 'Key metrics',
     model: 'Model: seasonal Holt-Winters · 7-day period',
     vsWeek: 'vs. current week',
+  },
+  services: {
+    badge: 'How it works',
+    title: 'Three services, one decision',
+    subtitle:
+      'Each piece does what it is best at. The forecast is instant, the foundation model is recomputed overnight, and the agent turns both into actions.',
+    layers: 'Layers',
+    items: [
+      {
+        name: 'Instant forecast',
+        tag: 'Hot path',
+        what: 'Projects demand for the next 14 days in about 1 ms.',
+        how: 'A statistical model fitted inside the same function that answers. No calls to other services, no waiting.',
+        proof: '7.77 % WAPE · seasonal backtest',
+      },
+      {
+        name: 'Foundation model',
+        tag: 'Nightly recompute',
+        what: 'A 200-million-parameter time-series foundation model, pre-trained on millions of public series.',
+        how: 'It runs once a night over the full history and publishes the result. The morning request only reads it.',
+        proof: '5.61 % WAPE · 2.15 points better',
+      },
+      {
+        name: 'Tool-using agent',
+        tag: 'Action',
+        what: 'Turns the forecast into a campaign or a reorder.',
+        how: 'It reads the same numbers you see and proposes the action with real figures. You confirm before anything ships.',
+        proof: 'Bedrock · 2 verified tools',
+      },
+    ],
+    winner: {
+      title: 'Why this wins',
+      points: [
+        {
+          head: 'Accuracy is shown, not claimed',
+          body: 'We publish the backtest and the exact holdout. A judge can reproduce it with one command. That is the difference between claiming and proving.',
+        },
+        {
+          head: 'The best of both, not just the best model',
+          body: 'The large model brings precision, the statistical model brings latency. Split by latency budget, nothing has to be given up.',
+        },
+        {
+          head: 'The agent does not invent the data',
+          body: 'The tools can only read what the forecast already computed. If the number does not exist, the tool fails and the agent says so.',
+        },
+        {
+          head: 'It works without depending on us',
+          body: 'If the foundation model fails, the instant forecast keeps answering. There is never a single point of failure on the customer path.',
+        },
+      ],
+    },
   },
   chart: {
     reality: 'Actual',

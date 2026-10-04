@@ -39,7 +39,12 @@ const FUNCTIONS = [
   },
   { name: 'agent', entry: 'agent/index.js', needsShared: true, packages: ['@aws-sdk/client-bedrock-runtime'] },
   { name: 'lead', entry: 'lead/index.js', needsShared: true, packages: ['@aws-sdk/client-secrets-manager'] },
-  { name: 'batch', entry: 'batch/index.js', needsShared: true, packages: ['@aws-sdk/client-s3'] },
+  {
+    name: 'batch',
+    entry: 'batch/index.js',
+    needsShared: true,
+    packages: ['@aws-sdk/client-s3', '@aws-sdk/client-lambda'],
+  },
 ]
 
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])

@@ -4,7 +4,7 @@
 #
 # torch is installed from the CPU wheel index in the Dockerfile, not PyPI:
 #   pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
-# The CPU build is roughly 10x smaller and this service runs on App Runner CPU.
+# The CPU build is roughly 10x smaller and this service runs on Lambda CPU.
 
 timesfm==2.0.2
 fastapi==0.142.2
@@ -13,3 +13,13 @@ pydantic==2.13.5
 numpy==2.5.3
 safetensors==0.8.0
 huggingface_hub>=0.34,<2.1
+
+# Required to run as a Lambda container. Lambda delivers an event to the runtime
+# API, not to a listening HTTP server, so a plain uvicorn app is never called.
+# awslambdaric is the entrypoint in the Dockerfile CMD: it serves the ASGI app on
+# 0.0.0.0:8080 and forwards each invocation as a request. Without it the container
+# starts fine and every invocation returns an empty payload.
+#
+# The PyPI name is awslambdaric, not aws-lambda-adapter; the latter has no
+# distribution at all. Pinned to the version whose cp312 wheel we build against.
+awslambdaric==4.1.0
