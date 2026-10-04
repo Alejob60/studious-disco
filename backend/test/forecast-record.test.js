@@ -102,9 +102,39 @@ test('the record carries consecutive dates starting tomorrow', () => {
   const dates = record.forecast.map((point) => point.date)
   const unique = new Set(dates)
   assert.equal(unique.size, 3, 'dates must not repeat')
-  assert.ok(dates[0] > record.generatedAt.slice(0, 10), 'first point must be in the future')
+  // UTC on both sides. This assertion used to compare a UTC generatedAt against
+  // local-time dates, so it only held in some hours of some timezones.
+  assert.ok(
+    dates[0] > record.generatedAt.slice(0, 10),
+    `first point ${dates[0]} must be after the UTC generation date ${record.generatedAt.slice(0, 10)}`
+  )
   assert.deepEqual(record.forecast.map((p) => p.value), [230, 240, 250])
   assert.equal(record.forecast[0].offsetDays, 1)
+})
+
+test('the record is not shifted by the host timezone', () => {
+  // Dates must come out the same regardless of the machine's offset, because the
+  // Lambda that consumes them runs in UTC.
+  const originalTz = process.env.TZ
+  const dates = {}
+
+  for (const tz of ['UTC', 'America/Bogota', 'Asia/Tokyo', 'Pacific/Auckland']) {
+    process.env.TZ = tz
+    const record = buildForecastRecord({
+      predictions: [230, 240],
+      model: 'm',
+      latencyMs: 1,
+      historyHash: 'h',
+      horizon: 2,
+    })
+    dates[tz] = record.forecast.map((point) => point.date).join(',')
+  }
+
+  if (originalTz === undefined) delete process.env.TZ
+  else process.env.TZ = originalTz
+
+  const unique = new Set(Object.values(dates))
+  assert.equal(unique.size, 1, `dates differ by timezone: ${JSON.stringify(dates)}`)
 })
 
 test('a record without bands says so instead of inventing one', () => {

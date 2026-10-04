@@ -131,7 +131,7 @@ function respond(statusCode, payload) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(payload) }
 }
 
-async function handler(event) {
+async function handler() {
   try {
     return await main()
   } catch (error) {

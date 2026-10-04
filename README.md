@@ -305,10 +305,12 @@ implementation on the **same 14-day holdout**, with the same metric:
 
 **The challenger won by 2.15 points of WAPE (27.7 % relative).**
 
-It costs ~2 s of CPU inference against our 1 ms, so we are not putting it on the
-synchronous path. Instead we will run it on a nightly schedule, store the
-precomputed forecast, and serve it from the same fast endpoint — which means the
-user gets the foundation model's accuracy at the champion's latency.
+It costs seconds of CPU inference against our 1 ms, so we are not putting it on
+the synchronous path. Measured in the actual container on 4 CPUs: **6-12 s**,
+with the model taking ~150 s to load at startup. That is exactly why it cannot
+share the request path, and why it runs on a nightly schedule instead: the
+stored forecast is served from the same fast endpoint, so the user gets the
+foundation model's accuracy at the champion's latency.
 
 Reproduce it yourself:
 

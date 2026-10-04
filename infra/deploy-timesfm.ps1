@@ -34,7 +34,7 @@ param(
   [string]$ArtifactBucket = 'atelier-predict-artifacts-409514059726',
   [string]$ForecastBucketName = '',
   [string]$ScheduleExpression = 'cron(30 4 * * ? *)',
-  [string]$CpuSize = '1 vCPU',
+  [string]$CpuSize = '2 vCPU',
   [string]$MemorySize = '4 GB',
   [switch]$PushOnly,
   [switch]$SkipTrigger

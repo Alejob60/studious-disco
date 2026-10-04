@@ -14,9 +14,10 @@
 # egress is blocked.
 
 # ───────────────────────────── builder ─────────────────────────────
-# 3.12 is the version TimesFM targets. The service was exercised locally on
-# 3.14.3 (see services/timesfm/smoke_test.py); override PYTHON_VERSION if you
-# want the image to match the local interpreter exactly.
+# 3.12 is the floor: numpy 2.5.x, which the pinned requirements need, requires
+# Python >= 3.12. The service was exercised locally on 3.14.3 (see
+# services/timesfm/smoke_test.py), so this is a slightly older interpreter than
+# the one the benchmark ran on.
 ARG PYTHON_VERSION=3.12
 FROM python:${PYTHON_VERSION}-slim AS builder
 
@@ -35,13 +36,22 @@ RUN pip install -r requirements.txt
 
 # Bake the checkpoint in. google/timesfm-2.5-200m-pytorch is Apache-2.0, the
 # newest release whose weights permit commercial self-hosting; 3.0 does not.
+#
+# The destination must be $HF_HOME/hub, not $HF_HOME. from_pretrained(repo_id)
+# resolves through the standard hub cache layout, so downloading anywhere else
+# leaves the weights where the offline lookup never looks.
 ARG TIMESFM_REPO=google/timesfm-2.5-200m-pytorch
 RUN python -c "\
 from huggingface_hub import snapshot_download; \
-snapshot_download('${TIMESFM_REPO}', local_dir='/opt/hf/timesfm')"
+snapshot_download('${TIMESFM_REPO}', cache_dir='/opt/hf/hub')"
 
 # ───────────────────────────── runtime ─────────────────────────────
 FROM python:${PYTHON_VERSION}-slim AS runtime
+
+# Required so ${PYTHON_VERSION} resolves inside this stage. A global ARG is only
+# usable in FROM lines; without this re-declaration the COPY below expands to an
+# empty path and the build fails.
+ARG PYTHON_VERSION
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

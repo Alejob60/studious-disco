@@ -59,7 +59,7 @@ export function AgentChat({ live }: { live: boolean }) {
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const replyCount = useRef(0)
   const nextId = useRef(100)
 
@@ -71,8 +71,14 @@ export function AgentChat({ live }: { live: boolean }) {
   }, [initialMessages])
 
   // Keep the newest message in view as the conversation grows.
+  //
+  // This scrolls the message list only. `scrollIntoView()` would walk every
+  // scrollable ancestor including the window, which yanked the page down to the
+  // next section every time the agent replied.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' })
+    const list = listRef.current
+    if (!list) return
+    list.scrollTo({ top: list.scrollHeight, behavior: reduceMotion ? 'auto' : 'smooth' })
   }, [messages, thinking, reduceMotion])
 
   const send = async () => {
@@ -157,7 +163,7 @@ export function AgentChat({ live }: { live: boolean }) {
             </span>
           </div>
 
-          <div className="max-h-[420px] space-y-4 overflow-y-auto px-4 py-6 sm:px-6">
+          <div ref={listRef} className="max-h-[420px] space-y-4 overflow-y-auto px-4 py-6 sm:px-6">
             <AnimatePresence initial={false}>
               {messages.map((message) => (
                 <motion.div
@@ -222,8 +228,7 @@ export function AgentChat({ live }: { live: boolean }) {
               </motion.div>
             )}
 
-            <div ref={bottomRef} />
-          </div>
+</div>
 
           <div className="border-t border-line p-3 sm:p-4">
             {notice && (

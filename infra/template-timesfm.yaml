@@ -40,14 +40,18 @@ Parameters:
       Name for the forecast bucket. Leave empty to let CloudFormation generate one.
   CpuSize:
     Type: String
-    Default: '1 vCPU'
+    Default: '2 vCPU'
     AllowedValues: ['0.25 vCPU', '0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU']
+    Description: >
+      2 vCPU with OMP_NUM_THREADS=1 is deliberate: measured inference was 6-12 s on
+      4 vCPU and 6.3-7.9 s on 2 vCPU with 2 threads, i.e. no measurable gain from
+      extra parallelism. Size up for headroom, not for throughput.
   MemorySize:
     Type: String
     Default: '4 GB'
     Description: >
-      200M fp32 parameters plus PyTorch runtime need roughly 2 GB resident. 4 GB
-      is the smallest size that leaves headroom for a 512-point context.
+      The 200M fp32 checkpoint plus the PyTorch runtime need roughly 2 GB resident.
+      4 GB is the smallest size that leaves headroom for a 512-point context.
 
 Conditions:
   # Long form on purpose: nested short-form functions inside a flow sequence are
@@ -147,9 +151,10 @@ Resources:
         ImageRepository:
           ImageConfiguration:
             Port: '8080'
-            Runtime: python311
-            # The weights are baked in and torch is CPU-only, so the declared
-            # runtime must be old enough for the python:3.12-slim base image.
+            # Must not be older than the base image Python, and the pinned
+            # requirements need >= 3.12 (numpy 2.5.x), so 3.11 is not an option.
+            Runtime: python312
+            # The weights are baked in and torch is CPU-only.
             StartCommand: >-
               uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
               --timeout-keep-alive 75
@@ -265,7 +270,9 @@ Resources:
       Code:
         S3Bucket: !Ref ArtifactBucket
         S3Key: !Ref CodeKey
-      Timeout: 60
+      # Inference measured at 6-12 s with high variance, plus ~150 s of model load
+      # on a cold instance. 45 s leaves room without letting the Lambda hang.
+      Timeout: 180
       MemorySize: 512
       Description: 'Nightly refresh: calls the TimesFM service and publishes the result.'
       Environment:
@@ -273,7 +280,7 @@ Resources:
           FORECAST_BUCKET: !Ref ForecastBucket
           TIMESFM_SERVICE_URL: !GetAtt TimesfmService.ServiceUrl
           FORECAST_HORIZON: '14'
-          TIMESFM_TIMEOUT_MS: '25000'
+          TIMESFM_TIMEOUT_MS: '45000'
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
@@ -316,8 +323,9 @@ Outputs:
     Description: Read this before leaving the stack running.
     Value: >
       App Runner bills for the time the service exists, not the time it is used.
-      With MinSize 1 the service costs roughly 60-90 USD per month at 1 vCPU / 4 GB
-      before request charges. The dashboard does not need any of this: the forecast
-      Lambda falls back to the Holt-Winters champion whenever no fresh forecast.json
-      exists.
+      With MinSize 1 at 2 vCPU / 4 GB the service costs roughly 120-180 USD per
+      month before request charges, and the image is about 5 GB, so the first
+      deploy spends several minutes pulling it. The dashboard does not need any of
+      this: the forecast Lambda falls back to the Holt-Winters champion whenever
+      no fresh forecast.json exists.
 

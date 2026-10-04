@@ -255,22 +255,31 @@ Donde el campeón sigue ganando es en todo lo demás:
 
 | | Campeón | Retador |
 | --- | --- | --- |
-| Inferencia | **1 ms** (cacheado) | 1.878–2.651 ms |
-| Carga del modelo | 0 ms | 4,6–5,8 s |
+| Inferencia | **1 ms** (cacheado) | **6.200–12.200 ms** (contenedor, 4 CPU) |
+| Carga del modelo | 0 ms | **146–157 s** al arrancar el contenedor |
 | Motor | Node puro en Lambda | Python + PyTorch en App Runner |
 | Coste en reposo | ~$0 (escala a cero) | instancia siempre activa |
+
+Medido dentro de la imagen real, no en el venv local: la primera cifra anotada
+(1.878–2.651 ms) venía de `benchmarks/` sobre el host y **no se reproduce** en el
+contenedor. Con 2 hilos la latencia fue 6.300–7.900 ms, es decir, sin ganancia
+medible, así que la imagen queda con `OMP_NUM_THREADS=1`.
 
 **Decisión revisada: no reemplazar, sino separar por presupuesto de latencia.**
 
 ```
    /forecast (síncrono)  ──►  Holt-Winters en Lambda · 1 ms · escala a cero
 
-   EventBridge nightly ──►  App Runner: TimesFM 2.5 · ~2 s sin nadie esperando
+   EventBridge nightly ──►  App Runner: TimesFM 2.5 · ~6-12 s sin nadie esperando
                               └─► S3: forecast.json
    /forecast ────────────────►  lee el precomputado (misma ruta, mejor WAPE)
 ```
 
 El usuario recibe **5.61 % de WAPE con la latencia del camino caliente.**
+
+El WAPE sí se reproduce exactamente dentro del contenedor: **5.61 %**, contra
+7.77 % del campeón y el 5.61 % de `benchmarks/`. La diferencia con el host está
+solo en la latencia, no en la calidad de la predicción.
 
 Esto además invalida la frase que yo mismo había escrito en el README del
 hackathon —*"Lo adoptaremos solo si gana"*— porque **sí ganó**. Corregir esa línea

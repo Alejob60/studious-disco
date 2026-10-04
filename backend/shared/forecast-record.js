@@ -64,7 +64,7 @@ function validateChallengerResult(result, { horizon = DEFAULT_HORIZON } = {}) {
 /** Builds the record the forecast Lambda later reads and serves. */
 function buildForecastRecord({ predictions, lower, upper, model, latencyMs, historyHash, horizon }) {
   const startDate = new Date()
-  startDate.setDate(startDate.getDate() + 1)
+  startDate.setUTCDate(startDate.getUTCDate() + 1)
 
   return {
     version: 1,
@@ -86,12 +86,20 @@ function buildForecastRecord({ predictions, lower, upper, model, latencyMs, hist
   }
 }
 
+/**
+ * UTC date arithmetic on purpose.
+ *
+ * generatedAt is UTC, so the calendar days have to be UTC too. Using local
+ * getters here made the first point land on the same calendar day as
+ * generatedAt for any host west of UTC in the evening, which broke the
+ * "first point is in the future" invariant.
+ */
 function offsetIsoDate(start, offsetDays) {
   const date = new Date(start)
-  date.setDate(date.getDate() + offsetDays)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  date.setUTCDate(date.getUTCDate() + offsetDays)
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
