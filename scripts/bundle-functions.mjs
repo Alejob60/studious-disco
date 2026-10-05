@@ -43,7 +43,7 @@ const FUNCTIONS = [
     name: 'batch',
     entry: 'batch/index.js',
     needsShared: true,
-    packages: ['@aws-sdk/client-s3', '@aws-sdk/client-lambda'],
+    packages: ['@aws-sdk/client-s3'],
   },
 ]
 
@@ -158,3 +158,4 @@ writeFileSync(
 )
 
 console.log(`\nStaged ${results.length} bundles in ${outDir}`)
+

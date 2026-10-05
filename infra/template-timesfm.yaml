@@ -7,13 +7,14 @@ Description: >
   pipeline has not published a fresh forecast, so nothing here is required for
   the dashboard to work.
 
-  Lambda container image, not App Runner, because App Runner bills for the time a
-  service exists and its AutoScalingConfiguration cannot scale to zero. A
-  container function bills per request only, which is the right shape for a job
-  that runs once a night.
+  A Lambda container function was tried first, because it bills per request and
+  scales to zero. It cannot host this model: 3008 MB is the account ceiling, the
+  resident set is about 2 GB, and the function exhausted its 840 s init budget
+  before the load finished. So inference runs on App Runner, which is not free
+  while it exists. See the CostProfile output before leaving it up.
 
   Flow:
-    EventBridge schedule -> batch Lambda -> inference Lambda (container)
+    EventBridge schedule -> batch Lambda -> App Runner (inference)
                                               -> S3 forecast.json
     forecast Lambda reads forecast.json and serves it when fresh
 
@@ -52,27 +53,30 @@ Parameters:
     Default: ''
     Description: >
       Name for the forecast bucket. Leave empty to let CloudFormation generate one.
-  InferenceMemoryMb:
-    Type: Number
-    Default: 3008
-    MinValue: 2048
-    MaxValue: 3008
+  CpuSize:
+    Type: String
+    Default: '2 vCPU'
+    AllowedValues: ['0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU']
     Description: >
-      The 200M-parameter fp32 checkpoint plus the PyTorch runtime need roughly
-      2 GB resident. Verified locally in the image: ~2.0 GB filesystem, 883 MB of
-      which is the checkpoint.
-
-      3008 MB is the ceiling Lambda accepts here, not 10240: creating the function
-      with more fails with a constraint error. Verified by deploying.
+      2 vCPU with OMP_NUM_THREADS=1 is deliberate: inference measured 6-12 s on
+      4 vCPU and 6.3-7.9 s on 2 threads, so extra parallelism bought nothing
+      measurable. Size up for headroom, not throughput.
+  MemorySize:
+    Type: String
+    Default: '4 GB'
+    AllowedValues: ['2 GB', '3 GB', '4 GB', '6 GB', '8 GB', '12 GB', '16 GB']
+    Description: >
+      The 200M-parameter fp32 checkpoint plus the PyTorch runtime need about 2 GB
+      resident, measured at 1.95 GB. bfloat16 was tried and rejected: 2.80 GB
+      resident and slower to load, for the same 5.61 % WAPE.
   InferenceTimeoutSeconds:
     Type: Number
-    Default: 840
-    MinValue: 120
-    MaxValue: 900
+    Default: 45
+    MinValue: 15
+    MaxValue: 300
     Description: >
-      Measured locally: ~150 s to load the model plus 6-12 s of inference. The
-      first invocation of the day also pulls the image, which is why this is set
-      near the 15-minute ceiling rather than to the inference time alone.
+      Client-side ceiling for one inference call. Measured 6-12 s, with a first
+      call on a fresh instance paying the model load first.
 
 Conditions:
   # Long form on purpose: nested short-form functions inside a flow sequence are
@@ -117,17 +121,16 @@ Resources:
               DaysAfterInitiation: 1
 
   # ---------------------------------------------------------------------------
-
+  # Inference: the model container on App Runner
+  #
+  # App Runner bills for the time a service exists, not the time it is used, and
+  # cannot scale to zero. A Lambda container function bills per request and would
+  # be the cheaper shape, but it cannot host this model: 3008 MB is the account
+  # ceiling, the resident set is ~2 GB, and the function exhausted its 840 s init
+  # budget. Measured in a plain container with 1 vCPU and 3 GB, the same model
+  # loads in 30 s, so the gap is the environment, not the image.
   # ---------------------------------------------------------------------------
-  # Inference: the model container, invoked once a night
-  # ---------------------------------------------------------------------------
-  InferenceLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/lambda/atelier-predict-forecast-model
-      RetentionInDays: 14
-
-  InferenceRole:
+  TimesfmAccessRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -135,61 +138,71 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
+              Service: tasks.apprunner.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-      Description: >
-        Pulls the container image and writes logs. Inference itself makes no AWS
-        API calls, so there is nothing else to grant.
-      Policies:
-        - PolicyName: pull-inference-image
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: PullImageFromThisRepositoryOnly
-                Effect: Allow
-                Action:
-                  - ecr:BatchGetImage
-                  - ecr:GetDownloadUrlForLayer
-                # Built from the parameter because the repository is not a resource
-                # of this stack. Scoped to one repository, not the whole account.
-                Resource: !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ImageRepositoryName}'
+        # App Runner requires its baseline ECR permissions on the task role.
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSAppRunnerECRAccessRole'
+      Description: Task role for the inference service. Inference makes no AWS API calls.
 
-  InferenceFunction:
-    Type: AWS::Lambda::Function
+  TimesfmService:
+    Type: AWS::AppRunner::Service
     Properties:
-      FunctionName: atelier-predict-forecast-model
-      PackageType: Image
-      Role: !GetAtt InferenceRole.Arn
-      Code:
-        ImageUri: !Ref ImageUri
-      # The container must listen on 0.0.0.0 or AWS_LAMBDA_FUNCTION_HANDLER
-      # will never reach it.
-      MemorySize: !Ref InferenceMemoryMb
-      Timeout: !Ref InferenceTimeoutSeconds
-      # Scratch space for the runtime. The default 512 MB is not enough headroom
-      # next to a 2 GB resident model on a 4 GB function.
-      EphemeralStorage:
-        Size: 2048
-      # No ReservedConcurrentExecutions on purpose: reserving here drops the
-      # account's unreserved concurrency below the AWS minimum of 10 while other
-      # functions exist in it. The orchestrator runs once a night, so a cap buys
-      # nothing that the schedule does not already provide.
-      Description: >-
-        Time-series foundation model inference. Invoked synchronously by the
-        batch job; the weights are baked into the image so it runs with no egress.
-      Environment:
-        Variables:
-          TIMESFM_REPO: google/timesfm-2.5-200m-pytorch
-          HF_HUB_OFFLINE: '1'
-          # One thread: measured 6-12 s on 4 vCPU and 6.3-7.9 s on 2 threads,
-          # so extra parallelism bought nothing measurable.
-          OMP_NUM_THREADS: '1'
-      LoggingConfig:
-        LogFormat: JSON
-        ApplicationLogLevel: INFO
-        SystemLogLevel: WARN
+      ServiceName: atelier-predict-forecast-model
+      SourceConfiguration:
+        ImageRepository:
+          ImageConfiguration:
+            Port: '8080'
+            # Runtime deliberately omitted. Declaring it is rejected here:
+            # AWS::EarlyValidation::PropertyValidation fails on Runtime for
+            # python310, python311 and python312 alike, while the same template
+            # without it is accepted. App Runner reads the runtime from the base
+            # image, which is python:3.12-slim.
+            #
+            # A real HTTP service here, so plain uvicorn: no awslambdaric. App
+            # Runner makes an actual request, unlike Lambda.
+            StartCommand: >-
+              uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
+              --timeout-keep-alive 75
+            EnvironmentVariables:
+              - Name: TIMESFM_REPO
+                Value: google/timesfm-2.5-200m-pytorch
+              - Name: HF_HUB_OFFLINE
+                Value: '1'
+              - Name: OMP_NUM_THREADS
+                Value: '1'
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+      AutoScalingConfiguration:
+        # MinSize 1 is the floor: App Runner cannot scale to zero. This is the
+        # reason the nightly job does not live here.
+        MinSize: 1
+        MaxSize: 2
+        TargetValue: 50
+        MaxConcurrency: 1
+      HealthCheckConfiguration:
+        HealthCheckPath: /health
+        HealthCheckInterval: 30
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeout: 5
+        HealthyThresholdCount: 1
+        UnhealthyThresholdCount: 3
+      InstanceConfiguration:
+        # 2 vCPU: inference measured 6-12 s on 4 vCPU and 6.3-7.9 s on 2 threads,
+        # so the extra parallelism is headroom, not throughput.
+        Cpu: !Ref CpuSize
+        Memory: !Ref MemorySize
+      NetworkConfiguration:
+        IngressConfiguration:
+          - IsPubliclyAccessible: true
+        EgressConfiguration:
+          EgressType: DEFAULT
+          EgressIpMode: NAT
+      Tags:
+        - Key: purpose
+          Value: atelier-predict-forecast-challenger
+        - Key: cost
+          Value: 'billed for the time the service exists'
 
   # ---------------------------------------------------------------------------
   # Nightly orchestrator
@@ -267,16 +280,6 @@ Resources:
                 Condition:
                   StringEquals:
                     's3:x-amz-server-side-encryption': AES256
-              - Sid: InvokeInference
-                Effect: Allow
-                Action: 'lambda:InvokeFunction'
-                # One function. No Condition on lambda:InvocationType: with the
-                # condition attached, the synchronous invoke is rejected outright
-                # ("not authorized to perform: lambda:InvokeFunction") even though
-                # the statement is present on the role. Scoping the resource to a
-                # single function already limits the blast radius, and this role
-                # belongs only to the orchestrator.
-                Resource: !GetAtt InferenceFunction.Arn
 
   BatchFunction:
     Type: AWS::Lambda::Function
@@ -288,17 +291,17 @@ Resources:
       Code:
         S3Bucket: !Ref ArtifactBucket
         S3Key: !Ref CodeKey
-      # Must exceed the inference function's model load plus inference. Measured
-      # locally at ~150 s of load before the first prediction, so a 180 s ceiling
-      # here aborted the orchestrator mid-call.
-      Timeout: 420
+      # Comfortably above one inference call: 6-12 s measured, plus a slower first
+      # call on an instance that is still loading the model.
+      Timeout: 180
       MemorySize: 512
-      Description: 'Nightly refresh: calls the inference function and publishes the result.'
+      Description: 'Nightly refresh: calls the inference service and publishes the result.'
       Environment:
         Variables:
           FORECAST_BUCKET: !Ref ForecastBucket
-          INFERENCE_FUNCTION_NAME: !Ref InferenceFunction
+          TIMESFM_SERVICE_URL: !GetAtt TimesfmService.ServiceUrl
           FORECAST_HORIZON: '14'
+          TIMESFM_TIMEOUT_MS: '45000'
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
@@ -318,7 +321,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: atelier-predict-nightly-forecast
-      Description: Refreshes the challenger forecast from the TimesFM service.
+      Description: Refreshes the challenger forecast from the inference service.
       ScheduleExpression: !Ref ScheduleExpression
       State: ENABLED
       Targets:
@@ -332,19 +335,19 @@ Outputs:
   ImageRepositoryUri:
     Description: Where the image was pushed from.
     Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepositoryName}'
-  InferenceFunctionName:
-    Description: Container function that runs the model. Invoked by the batch job.
-    Value: !Ref InferenceFunction
+  InferenceServiceUrl:
+    Description: Base URL of the inference service on App Runner.
+    Value: !GetAtt TimesfmService.ServiceUrl
   NightlyScheduleArn:
     Description: EventBridge rule driving the refresh.
-    Value: !Ref NightlySchedule
+    Value: !GetAtt NightlySchedule.Arn
   CostProfile:
-    Description: Why this stack costs nothing while idle.
+    Description: What this stack costs while it is up.
     Value: >
-      A Lambda container function bills per request and scales to zero, so a
-      nightly schedule costs one invocation a day. App Runner was rejected for
-      this workload because it bills for the time a service exists and cannot
-      scale to zero. The 2 GB image pulls on the first invocation of the day,
-      which is why InferenceFunction timeout sits near the 15-minute ceiling.
-      Measured locally: ~150 s of model load plus 6-12 s of inference.
-
+      App Runner bills for the time the service exists and cannot scale to zero,
+      so this costs roughly 120-180 USD per month at 2 vCPU / 4 GB with MinSize 1.
+      A Lambda container function would be cheaper but cannot host this model:
+      3008 MB is the account ceiling, the resident set is ~2 GB, and the function
+      exhausted its 840 s init budget without finishing the load. The forecast the
+      dashboard serves does not depend on this: the champion answers whenever no
+      fresh forecast.json exists.

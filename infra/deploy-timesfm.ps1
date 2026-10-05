@@ -34,9 +34,9 @@ param(
   [string]$ArtifactBucket = 'atelier-predict-artifacts-409514059726',
   [string]$ForecastBucketName = '',
   [string]$ScheduleExpression = 'cron(30 4 * * ? *)',
-  # 3008 MB is Lambda's ceiling here; 10240 is rejected at create time.
-  [int]$InferenceMemoryMb = 3008,
-  [int]$InferenceTimeoutSeconds = 840,
+  [string]$CpuSize = '2 vCPU',
+  [string]$MemorySize = '4 GB',
+  [int]$InferenceTimeoutSeconds = 45,
   [switch]$PushOnly,
   [switch]$SkipTrigger
 )
@@ -137,7 +137,8 @@ $paramList = @(
   "ParameterKey=CodeKey,ParameterValue=$codeKey",
   "ParameterKey=ScheduleExpression,ParameterValue=$ScheduleExpression",
   "ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName",
-  "ParameterKey=InferenceMemoryMb,ParameterValue=$InferenceMemoryMb",
+  "ParameterKey=CpuSize,ParameterValue=$CpuSize",
+  "ParameterKey=MemorySize,ParameterValue=$MemorySize",
   "ParameterKey=InferenceTimeoutSeconds,ParameterValue=$InferenceTimeoutSeconds"
 )
 
@@ -204,14 +205,33 @@ foreach ($line in $outputs) {
   if ($parts.Count -ge 2) { Write-Host ("    {0,-24} {1}" -f $parts[0], $parts[1]) }
 }
 
+$serviceUrl = (($outputs | Where-Object { $_ -like 'InferenceServiceUrl*' }) -split "`t") | Select-Object -Last 1
+
+Write-Host "`n==> Waiting for the inference service" -ForegroundColor Cyan
+# The first instance pulls a ~2 GB image and loads the model, so this is minutes,
+# not seconds. The service reports healthy before the model is resident, so
+# model_loaded is the signal that matters.
+$ready = $false
+for ($i = 0; $i -lt 60; $i++) {
+  Start-Sleep -Seconds 15
+  try {
+    $health = Invoke-RestMethod -Uri "$serviceUrl/health" -TimeoutSec 15
+    if ($health.model_loaded) {
+      Write-Host ("    healthy, model loaded in {0}s" -f $health.load_seconds) -ForegroundColor Green
+      $ready = $true
+      break
+    }
+    Write-Host "    up but the model is still loading..." -ForegroundColor DarkGray
+  } catch {
+    Write-Host "    not reachable yet..." -ForegroundColor DarkGray
+  }
+}
+if (-not $ready) { Write-Host '    the service did not report a loaded model in time.' -ForegroundColor Yellow }
+
 if (-not $SkipTrigger) {
   Write-Host "`n==> 5/5 Triggering one refresh" -ForegroundColor Cyan
-  Write-Host '    The first invocation pulls the image and loads the model, so this' -ForegroundColor DarkGray
-  Write-Host '    can take several minutes. The console looks quiet while it works.' -ForegroundColor DarkGray
   $watch = [System.Diagnostics.Stopwatch]::StartNew()
-  # The default CLI read timeout is shorter than a cold model load, so the call
-  # would be abandoned while the function is still working.
-  aws lambda invoke @awsArgs --cli-read-timeout 900 --function-name atelier-predict-batch --payload '{}' $resultFile 2>&1 | Out-Null
+  aws lambda invoke @awsArgs --cli-read-timeout 300 --function-name atelier-predict-batch --payload '{}' $resultFile 2>&1 | Out-Null
   $watch.Stop()
   Write-Host ("    orchestrator returned in {0:N0}s" -f $watch.Elapsed.TotalSeconds) -ForegroundColor DarkGray
   if (Test-Path $resultFile) {
