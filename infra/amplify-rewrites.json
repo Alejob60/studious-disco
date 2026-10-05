@@ -1,7 +1,7 @@
 [
   {
-    "source": "/<*>",
+    "source": "/*",
     "target": "/index.html",
-    "conditions": []
+    "status": "200"
   }
 ]
