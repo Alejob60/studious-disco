@@ -84,7 +84,7 @@ npm run test:backend         # 31 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **88 automated checks, all green against production.**
+Total: **124 automated checks, all green against production.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
@@ -97,7 +97,7 @@ Total: **88 automated checks, all green against production.**
 
 ## ☁️ AWS Architecture
 
-Nine AWS services, each doing a job that requires it:
+Thirteen AWS services, each doing a job that requires it. The challenger pipeline (EventBridge, App Runner, ECR) is billed continuously and is called out below:
 
 ```
 Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
@@ -119,8 +119,7 @@ Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
                                     ▼
                     enterprise@colombiatic.com.co  (tagged: atelier-predict-hackathon)
 
-Not deployed — see "Built, not deployed" above. In a separate stack so the
-dashboard costs nothing without it:
+Deployed, in a separate stack so the champion path stands alone:
 
 EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
                                                          TimesFM 2.5
@@ -134,14 +133,17 @@ EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
 | Service | Role |
 |---|---|
 | **Amplify Hosting** | Static SPA hosting |
-| **Lambda** (×3) | Forecast, agent, lead capture |
+| **Lambda** (×4) | Forecast, agent, lead capture, nightly batch orchestrator |
 | **API Gateway** | HTTP API with CORS, routes, integration timeouts |
 | **Amazon Bedrock** | Claude Sonnet 4.5 via cross-region inference profile |
 | **Secrets Manager** | Resend API key, fetched at runtime — never in the function config |
-| **S3** | Versioned Lambda artifacts (public access fully blocked) |
+| **S3** | Lambda artifacts plus the nightly `forecast.json` (public access fully blocked) |
+| **EventBridge** | One 04:30 UTC schedule that refreshes the challenger |
+| **App Runner** | Runs the foundation-model container. **Billed while it exists: ~$120–180/month** |
+| **ECR Public** | The model image. Public because this App Runner API cannot authenticate a private one |
 | **CloudWatch** | JSON logs, 14-day retention |
-| **IAM** | Three separate roles, least privilege |
-| **CloudFormation** | Whole stack from one template, reproducible |
+| **IAM** | Least-privilege role per function |
+| **CloudFormation** | Two stacks, each reproducible from one template |
 
 **This is not a wrapper around a hosted API.** Every number on the page is computed
 in a Lambda you can read, deploy with one command, and audit with two roles that
@@ -189,7 +191,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | COP 2,395,611/month, derived from that backtest |
-| Pipeline is real | 88 automated checks green against production |
+| Pipeline is real | 124 automated checks green against production |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -283,7 +285,7 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Claude agent on Bedrock with validated tool use — **deployed**
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
-- 88 automated checks against production
+- 124 automated checks against production
 
 ### 🔜 Phase 2 — Next 2 weeks *(planned, not built)*
 - Authentication on `/chat` and `/lead` (Cognito or API key)
@@ -323,40 +325,62 @@ TimesFM weights up to 2.5 are Apache-2.0 (commercial self-hosting permitted);
 3.0 weights are non-commercial, so 2.5 is the newest version we can host
 ourselves. Full write-up in [`benchmarks/README.md`](benchmarks/README.md).
 
-### 🏗️ Built, not deployed — the nightly challenger pipeline
+### 🏗️ The nightly challenger pipeline — deployed and serving
 
-The architecture above is implemented in the repo and validated, but **it is not
-running in production**. App Runner bills for the time a service exists rather
-than the time it is used, roughly $60–90/month at 1 vCPU / 4 GB with `MinSize 1`,
-and we did not want to commit the team to that spend without a decision.
+`GET /forecast` returns the TimesFM result, not the champion. The App Runner
+service loads the model in **1.3 s**, the batch job publishes `forecast.json`, and
+the forecast Lambda prefers that record whenever it is fresh.
 
 | Piece | Location | State |
 |---|---|---|
-| FastAPI inference service | [`services/timesfm/main.py`](services/timesfm/main.py) | 16/16 local smoke checks pass |
-| Container image | [`services/timesfm/Dockerfile`](services/timesfm/Dockerfile) | written, never built (Docker was off) |
-| Nightly orchestrator | [`backend/batch/index.js`](backend/batch/index.js) | bundled, 20 tests green |
-| AWS stack | [`infra/template-timesfm.yaml`](infra/template-timesfm.yaml) | passes `validate-template` |
-| One-command deploy | [`infra/deploy-timesfm.ps1`](infra/deploy-timesfm.ps1) | written, never run |
+| FastAPI inference service | [`services/timesfm/main.py`](services/timesfm/main.py) | 16/16 smoke checks, 5.61 % WAPE in-container |
+| Container image | [`services/timesfm/Dockerfile`](services/timesfm/Dockerfile) | built, 1.98 GB uncompressed |
+| Nightly orchestrator | [`backend/batch/index.js`](backend/batch/index.js) | bundled, tested |
+| AWS stack | [`infra/template-timesfm.yaml`](infra/template-timesfm.yaml) | deployed, `CREATE_COMPLETE` |
+| One-command deploy | [`infra/deploy-timesfm.ps1`](infra/deploy-timesfm.ps1) | runs green |
 
-Two decisions in it are worth reading even though it is switched off, because
-both are about not letting the challenger damage the champion:
+**It costs about $120–180/month.** App Runner bills for the time a service exists
+rather than the time it is used, and it cannot scale to zero. That is a real cost
+on this project, accepted deliberately for now, not an oversight. Everything the
+dashboard serves still works without it.
+
+Three decisions worth reading, because two of them are traps:
 
 - **The challenger cannot take the endpoint down.** A fresh, well-formed
   `forecast.json` wins; anything missing, stale, hash-mismatched or malformed
-  falls through to Holt-Winters. This is pinned by tests, including one that sets
-  `FORECAST_BUCKET` against a bundle that has no S3 SDK and asserts `/forecast`
-  still answers 200.
+  falls through to Holt-Winters. Pinned by tests, including one that sets
+  `FORECAST_BUCKET` against a bundle with no S3 SDK and asserts `/forecast` still
+  answers 200.
 - **The champion stays fast by default.** Reading S3 pulls in the AWS SDK, which
   takes the forecast bundle from **13 KB to 2,911 KB**. So the SDK is packaged
   only when you opt in: `node scripts/bundle-functions.mjs backend out --with-s3`.
-  The deployed function ships no SDK at all and makes no AWS call on any request.
+- **The image had to be made public.** This App Runner API has no `AccessRoleArn`
+  parameter at all, so a private ECR image cannot be authenticated — `CreateService`
+  answers `Authentication configuration is invalid`, and granting
+  `apprunner.amazonaws.com` in the repository policy does not help. `ECR_PUBLIC`
+  needs no role and is the only path this API supports. Two more of its limits are
+  recorded in the template because they are only findable by bisecting: `Runtime`
+  is rejected for every value, and `HealthCheckConfiguration` is rejected outright.
 
-To turn it on, once the spend is approved:
+Reproduce and redeploy:
 
 ```bash
 ./infra/deploy-timesfm.ps1 -ImageTag 1.0.0     # builds, pushes, deploys, triggers once
 ./infra/deploy.ps1 -ForecastBucketName <bucket-from-the-output>
 ```
+
+### 💲 Money is shown in USD, with the rate on the page
+
+Reviewers are US-based, so USD leads everywhere. The conversion is not hidden
+behind a magic number: [`src/lib/currency.ts`](src/lib/currency.ts) declares
+**4,000 COP per USD** as a stated assumption, not a live quote, and every money
+figure carries its COP equivalent so the arithmetic is checkable.
+
+The savings figure is derived, not asserted: the backtest shows the model misses
+13.97 units/day against the seasonal baseline's 18.29, so 4.32 fewer wrong units
+per day, times 30 days, times an 18,500 COP contribution margin — **2,395,611 COP,
+which is USD 599**. The backend still emits COP because the model math is
+currency-agnostic and only the presentation converts.
 
 ### 💡 Phase 3 — Month 2–3 *(aspiration)*
 - WhatsApp Business API so `activate_campaign` reaches a real audience
@@ -427,7 +451,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 88 automated checks run against the
+3. **The claims are machine-checked.** 124 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.
