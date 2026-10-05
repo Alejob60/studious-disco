@@ -14,7 +14,7 @@
     "verify:integration": "node scripts/verify-integration.mjs",
     "verify": "npm run typecheck && npm run test:backend",
     "typecheck": "tsc -b",
-    "postbuild": "node scripts/generate-seo.mjs"
+    "postbuild": "node scripts/generate-seo.mjs && node scripts/emit-locale-entries.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
