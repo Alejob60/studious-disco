@@ -75,24 +75,24 @@ const es = {
         proof: 'Bedrock · 2 herramientas verificadas',
       },
     ],
-    winner: {
-      title: 'Por qué esto nos hace ganadores',
+winner: {
+      title: 'Ingeniería, no promesas de IA',
       points: [
         {
-          head: 'La precisión se demuestra, no se promete',
-          body: 'Publicamos el backtest y elHoldout exacto. Un juez puede reproducirlo con un comando. Esa es la diferencia entre afirmar y probar.',
+          head: 'La precisión se demuestra, no se afirma',
+          body: 'Publicamos el backtest y el holdout exacto de 14 días. Un juez lo reproduce con un solo comando. Esa es la diferencia entre afirmar y probar.',
         },
         {
-          head: 'Lo mejor de los dos mundos, no solo el mejor modelo',
-          body: 'El modelo grande aporta la precisión; el modelo estadístico aporta la latencia. Separados por presupuesto de latencia, no hay renuncia.',
+          head: 'Arquitectura champion / challenger',
+          body: 'El modelo fundacional aporta la precisión máxima; el modelo estadístico aporta la latencia de 1 ms. Separados por presupuesto de rendimiento, no hay que renunciar a ninguno.',
         },
         {
-          head: 'El agente no inventa el dato',
-          body: 'Las herramientas solo pueden leer lo que el pronóstico ya calculó. Si el número no existe, la herramienta falla y el agente lo admite.',
+          head: 'Cero alucinaciones',
+          body: 'Las herramientas del agente solo leen lo que el pronóstico ya calculó. Si el número no existe, la herramienta falla de forma controlada y el agente lo admite.',
         },
         {
-          head: 'Funciona sin depender de nosotros',
-          body: 'Si el modelo fundacional falla, el pronóstico instantáneo sigue respondiendo. Nunca hay un punto único de falla en la ruta del cliente.',
+          head: 'Sin punto único de falla',
+          body: 'Si el servicio del modelo fundacional falla, el pronóstico instantáneo sigue respondiendo. El cliente nunca queda sin respuesta.',
         },
       ],
     },
@@ -132,7 +132,7 @@ const es = {
       { role: 'user', text: 'Sí, optimiza el envío para maximizar el recaudo.' },
       {
         role: 'agent',
-        text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: $128.600 COP.',
+        text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32 (COP 128.600 a 4.000 COP/USD).',
         meta: 'Campaña programada · WhatsApp',
       },
     ],
@@ -280,23 +280,23 @@ const en: Dictionary = {
       },
     ],
     winner: {
-      title: 'Why this wins',
+title: 'Engineering, not AI promises',
       points: [
         {
           head: 'Accuracy is shown, not claimed',
-          body: 'We publish the backtest and the exact holdout. A judge can reproduce it with one command. That is the difference between claiming and proving.',
+          body: 'We publish the backtest and the exact 14-day holdout. A judge reproduces it with one command. That is the difference between claiming and proving.',
         },
         {
-          head: 'The best of both, not just the best model',
-          body: 'The large model brings precision, the statistical model brings latency. Split by latency budget, nothing has to be given up.',
+          head: 'Champion / challenger architecture',
+          body: 'The foundation model brings maximum accuracy; the statistical model brings 1 ms latency. Split by performance budget, neither has to be given up.',
         },
         {
-          head: 'The agent does not invent the data',
-          body: 'The tools can only read what the forecast already computed. If the number does not exist, the tool fails and the agent says so.',
+          head: 'No hallucinations',
+          body: "The agent's tools only read what the forecast already computed. If the number does not exist, the tool fails in a controlled way and the agent admits it.",
         },
         {
-          head: 'It works without depending on us',
-          body: 'If the foundation model fails, the instant forecast keeps answering. There is never a single point of failure on the customer path.',
+          head: 'No single point of failure',
+          body: 'If the foundation model service fails, the instant forecast keeps answering. The customer is never left without a response.',
         },
       ],
     },
@@ -336,7 +336,7 @@ const en: Dictionary = {
       { role: 'user', text: 'Yes, optimise the send to maximise revenue.' },
       {
         role: 'agent',
-        text: 'Done. I segmented 1,842 high-propensity contacts and scheduled 3 send windows (10:00, 16:00 and 20:00) to avoid saturation. Projected extra revenue: COP $128,600.',
+        text: 'Done. I segmented 1,842 high-propensity contacts and scheduled 3 send windows (10:00, 16:00 and 20:00) to avoid saturation. Projected extra revenue: USD 32 (COP 128,600 at 4,000 COP/USD).',
         meta: 'Campaign scheduled · WhatsApp',
       },
     ],
@@ -420,3 +420,4 @@ const en: Dictionary = {
 }
 
 export const dictionaries: Record<Locale, Dictionary> = { es, en }
+

@@ -102,7 +102,9 @@ function productJsonLd(origin: string, description: string) {
     url: origin,
     description,
     inLanguage: ['es', 'en'],
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'COP', availability: 'https://schema.org/PreOrder' },
+    // USD, matching what the interface actually shows. Declaring COP here while the
+// page renders dollars would be a mismatch in structured data.
+offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/PreOrder' },
     provider: {
       '@type': 'Organization',
       name: 'ColombiaTIC Ingeniería SAS',

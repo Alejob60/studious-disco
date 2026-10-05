@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bot, Send, Sparkles, User } from 'lucide-react'
 import type { ChatMessage } from '../data/mock'
 import { isApiConfigured, sendChatMessage, type AgentAction } from '../lib/api'
+import { formatMoneyUsd } from '../lib/currency'
 import { Reveal } from './ui/Reveal'
 import { useI18n } from '../i18n/I18nProvider'
 
@@ -17,11 +18,13 @@ function describeAction(action: AgentAction, t: (key: string, vars?: Record<stri
     const channel = String(action.input.channel ?? 'whatsapp')
     const label = channel === 'whatsapp' ? 'WhatsApp' : channel.toUpperCase()
     const audience = action.input.audienceSize
-    const revenue = action.input.expectedRevenueCop
+    const revenueCop = action.input.expectedRevenueCop
 
     const extras = [
       audience ? `${Number(audience).toLocaleString('es-CO')} ${t('chat.contacts')}` : null,
-      revenue ? `$${Number(revenue).toLocaleString('es-CO')} COP` : null,
+      // The model emits COP; the interface leads with USD for the same reason the
+      // KPI cards do, and keeps COP in the payload for the audit trail.
+      revenueCop ? formatMoneyUsd(Number(revenueCop), 'es') : null,
     ].filter(Boolean)
 
     return `${t('chat.actionCampaign')} · ${label}${extras.length ? ` · ${extras.join(' · ')}` : ''}`

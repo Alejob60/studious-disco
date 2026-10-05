@@ -5,6 +5,7 @@
  */
 
 import type { ForecastResponse } from './api'
+import { COP_PER_USD, UNIT_MARGIN_COP, formatMoneyUsd, toUsd } from './currency'
 
 /** One x-axis slot. `real` and `predicted` overlap on the boundary day. */
 export type ChartPoint = {
@@ -64,7 +65,7 @@ export function toChartPoints(data: ForecastResponse): {
 
 export function toKpis(data: ForecastResponse): DisplayKpi[] {
   const { kpis, metrics } = data
-  const cop = (value: number) =>
+  const num = (value: number) =>
     new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value)
 
   return [
@@ -76,15 +77,18 @@ export function toKpis(data: ForecastResponse): DisplayKpi[] {
       decimals: 0,
       delta: kpis.weekAheadDeltaPct,
       higherIsBetter: true,
-      hint: `Suma del pronóstico frente a ${cop(kpis.previousWeekUnits)} unidades reales de la semana en curso.`,
+      hint: `Suma del pronóstico frente a ${num(kpis.previousWeekUnits)} unidades reales de la semana en curso.`,
     },
     {
       id: 'savings',
       label: 'Ahorro en reposición (30 días)',
-      value: kpis.inventorySavingsCop,
+      // USD leads because the reviewers are US-based; the COP equivalent stays in
+      // the hint so the conversion is auditable rather than asserted.
+      value: toUsd(kpis.inventorySavingsCop),
       prefix: '$',
+      suffix: ' USD',
       decimals: 0,
-      hint: `Backtest: el modelo comete ${metrics.modelMaeUnits} unidades/día de error frente a ${metrics.baselineMaeUnits} del baseline estacional, a un margen de $18.500 COP por unidad.`,
+      hint: `Backtest: el modelo comete ${metrics.modelMaeUnits} unidades/día de error frente a ${metrics.baselineMaeUnits} del baseline estacional, a un margen de ${formatMoneyUsd(UNIT_MARGIN_COP, 'es')} por unidad. Ahorro ${formatMoneyUsd(kpis.inventorySavingsCop, 'es')} a ${COP_PER_USD.toLocaleString('es-CO')} COP/USD.`,
     },
     {
       id: 'accuracy',

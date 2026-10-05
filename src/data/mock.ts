@@ -31,7 +31,7 @@ export const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 3,
     role: 'agent',
-    text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: $128.600 COP.',
+    text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32 (COP 128.600 a 4.000 COP/USD).',
     meta: 'Campaña programada · WhatsApp',
   },
 ]

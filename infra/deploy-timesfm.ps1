@@ -77,39 +77,40 @@ $runtimeMb = [math]::Round(([double]$runtimeMbRaw) / 1024, 2)
 Write-Host "    built ${ImageName}:$ImageTag (${runtimeMb} GB uncompressed)" -ForegroundColor DarkGray
 if ($runtimeMb -gt 9.5) { throw "Image is ${runtimeMb} GB uncompressed, over the 10 GB Lambda container limit." }
 
-Write-Host "`n==> 3/5 Publishing to ECR" -ForegroundColor Cyan
-$repoName = $ImageName
-# The repository is created here rather than in CloudFormation, because the image
-# has to exist before the stack does. The template therefore does not declare it:
-# CFN cannot adopt an existing resource under a fixed name and rejects the change
-# set with AWS::EarlyValidation::ResourceExistenceCheck.
-aws ecr describe-repositories --registry-id $account --repository-names $repoName @awsArgs --query 'repositories[0].repositoryName' --output text 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "    creating repository $repoName" -ForegroundColor DarkGray
-  aws ecr create-repository --registry-id $account --repository-name $repoName @awsArgs `
-    --image-scanning-configuration scanOnPush=true `
-    --image-tag-mutability MUTABLE | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "Could not create the ECR repository $repoName." }
-}
-
-# ECR auth expires client-side after 12 hours, so it is refreshed every run.
+Write-Host "`n==> 3/5 Publishing to the public registry" -ForegroundColor Cyan
+# Public ECR gallery, not the private registry. This App Runner API has no
+# AccessRoleArn parameter, so a private image cannot be authenticated at all:
+# CreateService answers "Authentication configuration is invalid", and granting
+# apprunner.amazonaws.com in the repository policy does not help. ECR_PUBLIC needs
+# no role, which is the only path this API supports.
 #
-# Registry host is the account-scoped dkr endpoint, which is also what docker push
-# targets. The legacy aws.ecr.<region> alias no longer resolves, and api.ecr.<region>
-# answers 404 on /v2/ because that is the control-plane API, not the registry.
-$password = aws ecr get-login-password --region $Region --profile $Profile 2>$null
-if (-not $password) { throw 'Could not obtain an ECR login password.' }
-$registryHost = "$account.dkr.ecr.$Region.amazonaws.com"
-$password | docker login --username AWS --password-stdin $registryHost 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "docker login failed against $registryHost." }
+# This makes the image, checkpoint included, publicly pullable. The weights are
+# Apache-2.0, so redistribution is permitted; the visibility decision is a human
+# one and it is recorded here rather than buried in a script.
+$publicRepoName = $ImageName
+aws ecr-public create-repository --region us-east-1 --repository-name $publicRepoName 2>&1 | Out-Null
+$repoUri = (aws ecr-public describe-repositories --region us-east-1 `
+  --query "repositories[?repositoryName=='$publicRepoName'].repositoryUri" --output text 2>$null)
+if (-not $repoUri -or $repoUri -match 'ERROR|None') {
+  throw "Could not resolve the public repository URI for $publicRepoName."
+}
+Write-Host "    $repoUri" -ForegroundColor DarkGray
 
-# A slash separates the registry host from the repository path. A second colon
-# makes Docker read the whole thing as one ambiguous reference.
-$remote = "${registryHost}/${repoName}:$ImageTag"
+# Docker's credential store on this machine is the Windows helper and it fails on
+# save, so the auth entry is written straight into an isolated config instead.
+$dockerCfg = Join-Path $env:TEMP 'atelier-docker-public'
+New-Item -ItemType Directory -Path $dockerCfg -Force | Out-Null
+$pubPassword = aws ecr-public get-login-password --region us-east-1 2>$null
+if (-not $pubPassword) { throw 'Could not obtain a public ECR login password.' }
+$auth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("AWS:$pubPassword"))
+'{ "auths": { "public.ecr.aws": { "auth": "' + $auth + '" } } }' |
+  Set-Content (Join-Path $dockerCfg 'config.json') -Encoding utf8
+
+$remote = "${repoUri}:$ImageTag"
 docker tag "${ImageName}:$ImageTag" $remote
 # The flag has to precede the reference: docker takes everything after NAME[:TAG]
 # as another target, so `push repo --quiet` tries to push a ref named --quiet.
-docker push --quiet $remote
+docker --config $dockerCfg push --quiet $remote
 if ($LASTEXITCODE -ne 0) { throw "Image push failed for $remote." }
 Write-Host "    pushed $remote" -ForegroundColor DarkGray
 
@@ -132,8 +133,7 @@ Write-Host "    uploaded $codeKey" -ForegroundColor DarkGray
 
 $paramList = @(
   "ParameterKey=ImageUri,ParameterValue=$remote",
-  "ParameterKey=ImageRepositoryName,ParameterValue=$repoName",
-  "ParameterKey=ArtifactBucket,ParameterValue=$ArtifactBucket",
+    "ParameterKey=ArtifactBucket,ParameterValue=$ArtifactBucket",
   "ParameterKey=CodeKey,ParameterValue=$codeKey",
   "ParameterKey=ScheduleExpression,ParameterValue=$ScheduleExpression",
   "ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName",

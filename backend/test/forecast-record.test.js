@@ -172,3 +172,18 @@ test('a record built by the batch is immediately publishable', () => {
   // Allow a small clock delta: the record is stamped "now".
   assert.equal(isPublishable(record, { now: Date.now() + 1000 }), true)
 })
+
+test('the service URL is usable by fetch whatever shape App Runner returns', () => {
+  // App Runner's ServiceUrl is a bare hostname. Without a scheme, fetch throws
+  // "Failed to parse URL", which the orchestrator would report as the challenger
+  // being unavailable rather than as a configuration problem.
+  const { normalizeServiceUrl } = require('../batch/index.js')
+
+  assert.equal(normalizeServiceUrl('cpcbtisqyz.us-east-1.awsapprunner.com'), 'https://cpcbtisqyz.us-east-1.awsapprunner.com')
+  assert.equal(normalizeServiceUrl('https://svc.example.com/'), 'https://svc.example.com')
+  assert.equal(normalizeServiceUrl('http://127.0.0.1:8099'), 'http://127.0.0.1:8099')
+  assert.equal(normalizeServiceUrl(''), '')
+  assert.equal(normalizeServiceUrl(undefined), '')
+  // A trailing slash would otherwise produce a double slash in the request path.
+  assert.ok(!normalizeServiceUrl('svc.example.com/').endsWith('/'))
+})

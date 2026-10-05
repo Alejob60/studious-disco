@@ -24,17 +24,6 @@ Parameters:
     Description: >
       ECR image URI for the inference service, e.g.
       123456789012.dkr.ecr.us-east-1.amazonaws.com/atelier-predict-forecast-model:1.0.0
-  ImageRepositoryName:
-    Type: String
-    Default: atelier-predict-forecast-model
-    Description: >
-      Name of the ECR repository holding the image.
-
-      The repository is deliberately NOT a resource of this stack.
-      infra/deploy-timesfm.ps1 creates it so it can push the image before the
-      stack exists, and CloudFormation cannot adopt an existing resource under a
-      fixed name: AWS::EarlyValidation::ResourceExistenceCheck rejects the change
-      set outright. Verified by bisecting the template.
   ArtifactBucket:
     Type: String
     Description: S3 bucket holding the batch Lambda bundle (created by infra/deploy-timesfm.ps1).
@@ -130,21 +119,6 @@ Resources:
   # budget. Measured in a plain container with 1 vCPU and 3 GB, the same model
   # loads in 30 s, so the gap is the environment, not the image.
   # ---------------------------------------------------------------------------
-  TimesfmAccessRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: tasks.apprunner.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        # App Runner requires its baseline ECR permissions on the task role.
-        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSAppRunnerECRAccessRole'
-      Description: Task role for the inference service. Inference makes no AWS API calls.
-
   TimesfmService:
     Type: AWS::AppRunner::Service
     Properties:
@@ -164,40 +138,24 @@ Resources:
             StartCommand: >-
               uvicorn main:app --host 0.0.0.0 --port 8080 --workers 1
               --timeout-keep-alive 75
-            EnvironmentVariables:
-              - Name: TIMESFM_REPO
-                Value: google/timesfm-2.5-200m-pytorch
-              - Name: HF_HUB_OFFLINE
-                Value: '1'
-              - Name: OMP_NUM_THREADS
-                Value: '1'
           ImageIdentifier: !Ref ImageUri
-          ImageRepositoryType: ECR
-      AutoScalingConfiguration:
-        # MinSize 1 is the floor: App Runner cannot scale to zero. This is the
-        # reason the nightly job does not live here.
-        MinSize: 1
-        MaxSize: 2
-        TargetValue: 50
-        MaxConcurrency: 1
-      HealthCheckConfiguration:
-        HealthCheckPath: /health
-        HealthCheckInterval: 30
-        HealthCheckProtocol: HTTP
-        HealthCheckTimeout: 5
-        HealthyThresholdCount: 1
-        UnhealthyThresholdCount: 3
+          # Public gallery, not private ECR. This App Runner API has no
+          # AccessRoleArn parameter at all, so a private image cannot be
+          # authenticated: CreateService answers "Authentication configuration
+          # invalid" and a repository policy granting apprunner.amazonaws.com
+          # does not help either. The API docs are explicit that the access role
+          # is required for ECR but not for ECR Public.
+          ImageRepositoryType: ECR_PUBLIC
       InstanceConfiguration:
         # 2 vCPU: inference measured 6-12 s on 4 vCPU and 6.3-7.9 s on 2 threads,
         # so the extra parallelism is headroom, not throughput.
         Cpu: !Ref CpuSize
         Memory: !Ref MemorySize
-      NetworkConfiguration:
-        IngressConfiguration:
-          - IsPubliclyAccessible: true
-        EgressConfiguration:
-          EgressType: DEFAULT
-          EgressIpMode: NAT
+      # HealthCheckConfiguration deliberately omitted: this API rejects it with
+      # AWS::EarlyValidation::PropertyValidation, verified in isolation against an
+      # otherwise identical template. The default check is TCP on the port, and
+      # infra/deploy-timesfm.ps1 polls GET /health over HTTP until the model is
+      # resident, which is the signal that actually matters.
       Tags:
         - Key: purpose
           Value: atelier-predict-forecast-challenger
@@ -332,9 +290,9 @@ Outputs:
   ForecastBucket:
     Description: Bucket holding forecast.json and the optional uploaded history.json.
     Value: !Ref ForecastBucket
-  ImageRepositoryUri:
-    Description: Where the image was pushed from.
-    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepositoryName}'
+  InferenceImage:
+    Description: Public image the inference service runs. Pullable without a role.
+    Value: !Ref ImageUri
   InferenceServiceUrl:
     Description: Base URL of the inference service on App Runner.
     Value: !GetAtt TimesfmService.ServiceUrl
@@ -351,3 +309,5 @@ Outputs:
       exhausted its 840 s init budget without finishing the load. The forecast the
       dashboard serves does not depend on this: the champion answers whenever no
       fresh forecast.json exists.
+
+

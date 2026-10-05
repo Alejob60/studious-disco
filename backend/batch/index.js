@@ -36,7 +36,18 @@ const { buildSyntheticHistory } = require('../shared/forecast-engine.js')
 const BUCKET = process.env.FORECAST_BUCKET ?? ''
 const HISTORY_KEY = process.env.HISTORY_KEY ?? DEFAULT_HISTORY_KEY
 const FORECAST_KEY_NAME = process.env.FORECAST_KEY ?? FORECAST_KEY
-const SERVICE_URL = (process.env.TIMESFM_SERVICE_URL ?? '').replace(/\/+$/, '')
+const SERVICE_URL = normalizeServiceUrl(process.env.TIMESFM_SERVICE_URL)
+
+/**
+ * App Runner's ServiceUrl attribute is a bare hostname, so `fetch` gets
+ * "Failed to parse URL" without this. A value that already carries a scheme is
+ * left alone, which keeps local testing against http://127.0.0.1 working.
+ */
+function normalizeServiceUrl(value) {
+  const trimmed = (value ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
 const HORIZON = Number(process.env.FORECAST_HORIZON) || DEFAULT_HORIZON
 const CALL_TIMEOUT_MS = Number(process.env.TIMESFM_TIMEOUT_MS) || 45_000
 
@@ -164,5 +175,5 @@ async function handler() {
   }
 }
 
-module.exports = { handler }
+module.exports = { handler, normalizeServiceUrl }
 
