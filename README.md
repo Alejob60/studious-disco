@@ -78,20 +78,59 @@ The part we care about most: **the claims above are machine-checked against the
 deployed system.**
 
 ```bash
-npm run verify:integration   # 40 checks: live site ↔ live API, every sitemap deep link included
+npm run verify:integration   # 52 checks: live site ↔ live API, every sitemap deep link, the real-data lab
 npm run verify:api           # 27 checks: API contract the UI depends on
-npm run test:backend         # 70 unit tests
+npm run test:backend         # 109 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **137 automated checks.**
+Total: **188 automated checks.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
 - Full **es / en** with locale-prefixed routes, no hardcoded copy
+- The root URL opens in the reader's own language, detected from the browser's
+  preference order. An explicit `/es` or `/en` always wins, so a shared link and
+  the language switcher are never overridden
 - The agent replies in the language of the interface
 - `/llms.txt`, `/robots.txt`, `/sitemap.xml` (11 URLs with hreflang), JSON-LD,
   per-route canonical — so language models and crawlers can read the site properly
+
+### 🔬 5. Score your own data, and keep the result
+
+Everything above runs on a synthetic series. That is honest, but it leaves a
+reviewer nothing to push back on, so the page also accepts the visitor's own
+data:
+
+- **Download a CSV** of a neighbourhood shop's demand, 28 weeks of weekly rhythm,
+  payday bumps and a Christmas spike — or upload your own file
+- **Edit it in place.** Changing a number and re-running shows the effect
+  immediately, which a file picker alone would not
+- **The same engine scores it.** `buildForecastReport()` is the function that
+  produces the 7.77 % above, run on your series instead of ours. There is no
+  second implementation written for the demo
+
+```
+The sample scores 10.40 % WAPE against a 14.32 % seasonal-naive baseline
+(27.40 % better) — in the same range as the dashboard's synthetic figure, not a
+suspiciously better one.
+```
+
+Spreadsheet exports are not clean arrays, and reading `1.234` as `1234` produces
+a confidently wrong forecast with nothing to indicate otherwise. So the delimiter
+decides how the decimal mark is read — a semicolon means a locale that writes
+`1.234,50` — and ambiguous forms are refused rather than guessed. A rejection
+names the line and the problem.
+
+**Every evaluation is recorded** in a MongoDB Atlas cluster already running in
+this account, in its own `atelier_predict` database, with a 90-day TTL index so
+the database expires the data without a cron function. Reaching Atlas over its
+public endpoint is why this needed no VPC, no NAT gateway and no new database. If
+Atlas does not answer, the metrics are still returned and the page says so — the
+write is best-effort, and the claim is never stronger than what happened.
+
+That record is the seed of the phase-two dashboard: a customer cannot be shown
+how their own accuracy moved over time until someone stored it.
 
 ---
 
@@ -108,9 +147,18 @@ Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
   │                        TimesFM record from S3 and falls back to the
   │                        champion on anything missing or stale.
   │
-  ├── POST /chat ──────► atelier-predict-agent     (1024 MB / 28 s)
+├── POST /chat ──────► atelier-predict-agent     (1024 MB / 28 s)
   │                        Bedrock Converse + tool use
   │                        IAM: bedrock:InvokeModel on ONE model
+  │
+  ├── POST /evaluate ───► atelier-predict-evaluate  (512 MB / 30 s)
+  │                        same engine, the visitor's own CSV
+  │                        IAM: secretsmanager:GetSecretValue on ONE secret
+  │                                 │
+  │                                 ▼
+  │                   MongoDB Atlas → atelier_predict.evaluations
+  │                   (cluster already in this account, over its public
+  │                    endpoint: no VPC, no NAT, no new database)
   │
   └── POST /lead ──────► atelier-predict-lead      (512 MB / 25 s)
                            Resend, key read at runtime from Secrets Manager
@@ -133,10 +181,11 @@ EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
 | Service | Role |
 |---|---|
 | **Amplify Hosting** | Static SPA hosting |
-| **Lambda** (×4) | Forecast, agent, lead capture, nightly batch orchestrator |
-| **API Gateway** | HTTP API with CORS, routes, integration timeouts |
+| **Lambda** (×5) | Forecast, agent, evaluation, lead capture, nightly batch orchestrator |
+| **API Gateway** | HTTP API with CORS restricted to the deployed origin, routes, integration timeouts |
 | **Amazon Bedrock** | Claude Sonnet 4.5 via cross-region inference profile |
-| **Secrets Manager** | Resend API key, fetched at runtime — never in the function config |
+| **Secrets Manager** | Resend API key and the Atlas URI, fetched at runtime — never in the function config |
+| **MongoDB Atlas** | Stores each real-data evaluation. Reuses a cluster already in this account; its own database, 90-day TTL |
 | **S3** | Lambda artifacts plus the nightly `forecast.json` (public access fully blocked) |
 | **EventBridge** | One 04:30 UTC schedule that refreshes the challenger |
 | **App Runner** | Runs the foundation-model container. **Billed while it exists: ~$120–180/month** |
@@ -191,7 +240,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | COP 2,395,611/month, derived from that backtest |
-| Pipeline is real | 137 automated checks against the deployed system |
+| Pipeline is real | 188 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -262,9 +311,18 @@ npm run verify:integration \
   https://main.d28ukybtuih8pa.amplifyapp.com \
   https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
-40 checks against production, from your own machine.
+52 checks against production, from your own machine.
 
-### Step 6 — The legal and agent surface (30 s)
+### Step 6 — Score your own data (90 s)
+1. Scroll to **"Try it on your data"** and press **Load the sample series**
+2. Press **Evaluate my series**
+3. Read the two WAPEs: the model's and the naive baseline's, both measured on the
+   same 14 days it never saw. The sample lands at 10.40 % against 14.32 %
+4. Now change a number in the textarea and press it again. The number moves
+5. The line underneath says the evaluation was **stored**, with an id and the
+   retention window. That record is what a phase-two dashboard would chart
+
+### Step 7 — The legal and agent surface (30 s)
 Open `/llms.txt`, `/en/privacy`, and the **cookie consent banner**. Four
 jurisdictional policies in two languages, and a site an external agent can read.
 
@@ -280,18 +338,25 @@ jurisdictional policies in two languages, and a site an external agent can read.
 ## 🚀 Roadmap
 
 ### ✅ Phase 1 — Shipped (this hackathon)
-- Static SPA on Amplify Hosting, bilingual (`/es`, `/en`)
+- Static SPA on Amplify Hosting, bilingual, opening in the reader's own language
 - Holt-Winters forecast with seasonal-naive backtest — **deployed and scoring**
 - Claude agent on Bedrock with validated tool use — **deployed**
+- **Real-data lab**: download a CSV, edit it, have the same engine score it, and
+  keep the evaluation in MongoDB Atlas with a 90-day TTL
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
-- 137 automated checks against production
+- Every sitemap route served as a real page, not a rewrite the CDN ignored
+- 188 automated checks against production
 
-### 🔜 Phase 2 — Next 2 weeks *(planned, not built)*
+### 🔜 Phase 2 — Commercial build *(planned, not built)*
+- **The control dashboard.** Every evaluation is already stored, so the missing
+  piece is the view: accuracy trending per customer over time, champion against
+  challenger side by side, and the agent's actions logged instead of firing and
+  forgetting
+- Multi-tenancy on top of the existing collection — customers, SKUs and series
 - Authentication on `/chat` and `/lead` (Cognito or API key)
-- Restricted CORS to the deployed origin only
 - Streaming agent replies (`ConverseStream`) to cut time-to-first-token
-- Real customer CSV via the existing `POST /forecast {"history": [...]}` contract
+- Lead pipeline beyond email: status, notes, export
 - IAM deploy role replacing the root credentials used so far
 
 ### 🧪 Evaluated — TimesFM 2.5 vs our champion
@@ -436,14 +501,20 @@ hidden:
 
 | Item | Status |
 |---|---|
-| IAM least privilege per function | ✅ three roles, scoped resources |
+| IAM least privilege per function | ✅ four roles, scoped resources, one secret each |
 | Secrets out of code and function config | ✅ Secrets Manager, runtime fetch |
 | S3 public access | ✅ fully blocked, no bucket policy |
 | XSS escaping in notification emails | ✅ tested, all lead fields escaped |
+| CORS origin restriction | ✅ **only the deployed origin**; a foreign origin gets no allow-origin header, asserted by the suite |
+| Uploaded-data handling | ✅ bounded to 365 points, refused when unparseable, 90-day TTL, never logged |
 | Rate limiting on `/lead` | ⚠️ in-memory, per instance — moves to DynamoDB with scale |
-| Authentication on `/chat` and `/lead` | ❌ **public; planned Phase 2** |
-| CORS origin restriction | ❌ currently `*`; planned Phase 2 |
+| Authentication on `/chat` and `/lead` | ❌ **public by deliberate choice until phase 2** |
 | Deploy credentials | ⚠️ root used during the hackathon; IAM role planned |
+
+> **On leaving `/chat` open:** this is a hackathon, and an authenticated demo is
+> a worse demo. The wildcard CORS that made it genuinely careless is closed, so
+> no third-party page can drive the Bedrock spend; what remains is that the
+> deployed site itself is unauthenticated, which is the gap phase 2 closes.
 
 ---
 
@@ -453,7 +524,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 137 automated checks run against the
+3. **The claims are machine-checked.** 188 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.
