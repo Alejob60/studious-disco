@@ -11,6 +11,7 @@ import { ServicesExplainer } from './components/ServicesExplainer'
 import { CookieConsent } from './components/legal/CookieConsent'
 import { ChartSkeleton } from './components/ui/ChartSkeleton'
 import { I18nProvider, isLocale, useI18n } from './i18n/I18nProvider'
+import { detectLocale } from './i18n/detectLocale'
 import type { Locale } from './i18n/dictionaries'
 import { SeoHead } from './components/SeoHead'
 import { toChartPoints, toKpis } from './lib/forecast-view'
@@ -84,7 +85,7 @@ const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default:
  * Spanish dictionary.
  *
  * `fallbackLocale` covers the unprefixed `/` entry point. It is rendered
- * directly rather than redirected to `/es` so that refreshing the site root
+ * directly rather than redirected to `/{locale}` so that refreshing the site root
  * always returns the app, even on a host with no SPA rewrite rule configured.
  */
 function LocaleRoute({
@@ -95,11 +96,14 @@ function LocaleRoute({
   fallbackLocale?: Locale
 }) {
   const { lang } = useParams<{ lang: string }>()
+  // An explicit prefix wins over detection, so neither a shared deep link nor
+  // the language switcher can be overridden by the browser's preference.
   const locale = fallbackLocale ?? (isLocale(lang) ? lang : null)
 
-  if (!locale) return <Navigate to="/es" replace />
+  // Only reachable for an explicit but unsupported prefix such as `/fr`.
+  if (!locale) return <Navigate to={`/${detectLocale()}`} replace />
 
-return (
+  return (
     <I18nProvider locale={locale}>
       <DocumentLang />
       <ScrollToTop />
@@ -130,12 +134,14 @@ export default function App() {
         </a>
 
         <Routes>
-          {/* Unprefixed root renders Spanish in place instead of redirecting, so
-              a refresh on `/` can never land on a 404. */}
+          {/* The unprefixed root renders in place instead of redirecting, so a
+              refresh on `/` can never land on a 404. Its language comes from the
+              browser, because the demo is opened by people who do not read
+              Spanish and an explicit prefix always overrides this. */}
           <Route
             path="/"
             element={
-              <LocaleRoute fallbackLocale="es">
+              <LocaleRoute fallbackLocale={detectLocale()}>
                 <Landing />
               </LocaleRoute>
             }

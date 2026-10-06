@@ -87,13 +87,17 @@ function localiseHtml(html, route) {
 const shell = readFileSync(indexFile, 'utf8')
 const written = []
 
-for (const route of EMITTABLE_ROUTES) {
+// The root is written last so it overwrites the shell rather than becoming it.
+// Vite emits absolute `/assets/...` paths, so the copy boots the same bundle from
+// any depth, and re-running this script is idempotent: the canonical and
+// hreflang tags are stripped before being re-added.
+const ordered = [...EMITTABLE_ROUTES].sort((a, b) => (a.dir === '' ? 1 : 0) - (b.dir === '' ? 1 : 0))
+
+for (const route of ordered) {
   const dir = join(distDir, route.dir)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'index.html'), localiseHtml(shell, route), 'utf8')
   written.push(route.path)
 }
 
-// The unprefixed root keeps whatever Vite emitted; it is already a real file and
-// the app falls back to Spanish there.
 console.log(`emitted ${written.length} localised entries: ${written.join(' ')}`)

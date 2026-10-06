@@ -120,7 +120,11 @@ export const ROUTES = [
   {
     path: '/',
     dir: '',
-    locale: 'es',
+    // The root is the one URL that serves either language: the app resolves it
+    // from the browser at runtime. Its static shell is therefore written in the
+    // same fallback the runtime uses (FALLBACK_LOCALE in src/i18n/detectLocale.ts),
+    // so the tab title and `lang` a judge sees before hydration are not Spanish.
+    locale: 'en',
     kind: 'root',
     alternates: ['/es', '/en'],
     priority: '1.0',
@@ -157,7 +161,10 @@ export const ROUTES = [
   ),
 ]
 
-/** Same list, but without the root entry: only these need an emitted file. */
-export const EMITTABLE_ROUTES = ROUTES.filter((route) => route.dir !== '')
+/**
+ * Every route needs a file, the root included: it is the URL judges open, and it
+ * was the one route the build used to leave as Vite wrote it.
+ */
+export const EMITTABLE_ROUTES = ROUTES
 
 export const localeMeta = readLocaleMeta
