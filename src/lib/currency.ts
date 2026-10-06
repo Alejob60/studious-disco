@@ -25,13 +25,23 @@ export function toUsd(copValue: number): number {
 /**
  * Formats a COP amount as USD with the COP equivalent underneath, so the
  * conversion is never a black box.
+ *
+ * `decimals` defaults to 0, which is right for a headline savings figure of
+ * hundreds of dollars. It must be raised for a small unit-level amount: the
+ * margin is COP 18,500, or USD 4.625, and rounding that to "$5" makes the
+ * arithmetic a judge is invited to check come out eight percent wrong.
  */
-export function formatMoneyUsd(copValue: number, locale: 'es' | 'en'): string {
+export function formatMoneyUsd(
+  copValue: number,
+  locale: 'es' | 'en',
+  decimals = 0,
+): string {
   const usd = toUsd(copValue)
   const usdText = new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(usd)
 
   const copText = new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {

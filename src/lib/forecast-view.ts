@@ -113,7 +113,7 @@ export function toKpis(data: ForecastResponse, locale: 'es' | 'en'): DisplayKpi[
       hintVars: {
         modelMae: formatNumber(metrics.modelMaeUnits, 2, locale),
         baselineMae: formatNumber(metrics.baselineMaeUnits, 2, locale),
-        margin: formatMoneyUsd(UNIT_MARGIN_COP, locale),
+        margin: formatMoneyUsd(UNIT_MARGIN_COP, locale, 2),
         savings: formatMoneyUsd(kpis.inventorySavingsCop, locale),
         rate: formatNumber(COP_PER_USD, 0, locale),
       },
