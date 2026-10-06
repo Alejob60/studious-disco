@@ -52,6 +52,12 @@ export function Header() {
               {t('nav.services')}
             </a>
             <a
+              href={`${base}#lab`}
+              className="text-sm text-body transition-colors hover:text-gold"
+            >
+              {t('nav.lab')}
+            </a>
+            <a
               href={`${base}#contacto`}
               className="text-sm text-body transition-colors hover:text-gold"
             >

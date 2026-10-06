@@ -21,7 +21,13 @@ test('the index documents every endpoint the API actually serves', () => {
   const index = describeApi('')
   const declared = index.endpoints.map((e) => `${e.method} ${e.path}`).sort()
 
-  assert.deepEqual(declared, ['GET /forecast', 'POST /chat', 'POST /lead'])
+  assert.deepEqual(declared, [
+    'GET /evaluate/health',
+    'GET /forecast',
+    'POST /chat',
+    'POST /evaluate',
+    'POST /lead',
+  ])
   assert.equal(declared.length, ENDPOINTS.length)
 })
 

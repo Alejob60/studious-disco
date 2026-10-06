@@ -168,6 +168,38 @@ const badResponse = await fetch(`${api}/lead`, {
 })
 check('invalid payload rejected with 400', badResponse.status === 400, String(badResponse.status))
 
+console.log('\n== POST /evaluate (a visitor scoring their own series) ==')
+// The downloadable sample is the file the landing page hands over, so fetching it
+// from the live site means this check exercises the same bytes a visitor gets.
+const sampleResponse = await fetch(`${origin}/sample-demand.csv`)
+check('sample CSV is downloadable', sampleResponse.status === 200, String(sampleResponse.status))
+const sampleCsv = await sampleResponse.text()
+
+const evaluated = await (
+  await fetch(`${api}/evaluate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ csv: sampleCsv, source: 'integration', locale: 'en' }),
+  })
+).json()
+check('evaluate returns 200', evaluated.ok === true, JSON.stringify(evaluated).slice(0, 160))
+check('evaluate scored the uploaded series', evaluated.points > 28, String(evaluated.points))
+check('evaluate reports both WAPEs', typeof evaluated.metrics?.wape === 'number' && typeof evaluated.metrics?.baselineWape === 'number')
+check('the model beats the baseline on this series', evaluated.metrics.wape < evaluated.metrics.baselineWape)
+check('evaluate projects a horizon', (evaluated.forecast?.length ?? 0) === evaluated.horizon)
+// `persisted` is the claim that matters most: without a record this is a demo,
+// with one it is a system that can show a customer their own accuracy over time.
+check('the evaluation was recorded', evaluated.persistence?.persisted === true, JSON.stringify(evaluated.persistence))
+
+const shortResponse = await fetch(`${api}/evaluate`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Origin: origin },
+  body: JSON.stringify({ csv: '1\n2\n3' }),
+})
+const short = await shortResponse.json()
+check('a too-short series is refused with 400', shortResponse.status === 400, String(shortResponse.status))
+check('the refusal names the problem', short.error === 'too_short', String(short.error))
+
 console.log(
   failures.length === 0
     ? '\nAll integration checks passed.'

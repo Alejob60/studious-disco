@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AgentChat } from './components/AgentChat'
 import { ContactForm } from './components/ContactForm'
+import { DataLab } from './components/DataLab'
 import { DataSourceBadge } from './components/DataSourceBadge'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
@@ -70,8 +71,9 @@ function Landing() {
           peakUnits={data.kpis.peakUnits}
         />
     </Suspense>
-    <ServicesExplainer />
+<ServicesExplainer />
     <AgentChat live={source === 'live'} />
+      <DataLab />
       <ContactForm />
     </>
   )

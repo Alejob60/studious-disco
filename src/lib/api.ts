@@ -108,3 +108,73 @@ export async function sendChatMessage(
 
   return response.json() as Promise<ChatResponse>
 }
+
+export type EvaluationMetrics = ForecastMetrics
+
+export type EvaluationPersistence = {
+  /** Whether a store was configured at all. False means the URI is missing. */
+  enabled: boolean
+  /** Whether this particular write landed. False while Atlas is unreachable. */
+  persisted: boolean
+  evaluationId: string | null
+  retentionDays: number | null
+}
+
+export type EvaluationResponse = {
+  ok: true
+  evaluatedAt: string
+  points: number
+  horizon: number
+  model: string
+  period: number
+  metrics: EvaluationMetrics
+  kpis: ForecastKpis
+  forecast: ForecastProjection[]
+  history: ForecastPoint[]
+  persistence: EvaluationPersistence
+}
+
+/** A refusal from the API, carrying the row-level reason the parser produced. */
+export class EvaluationError extends Error {
+  code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'EvaluationError'
+    this.code = code
+  }
+}
+
+/**
+ * Sends a visitor's own series to be scored.
+ *
+ * The CSV is sent as text rather than parsed in the browser so the browser and
+ * the API agree on one grammar. Parsing twice is how a file that works on the
+ * demo silently differs in production.
+ */
+export async function evaluateSeries(
+  csv: string,
+  source: string,
+  locale = 'es',
+  signal?: AbortSignal,
+): Promise<EvaluationResponse> {
+  if (!API_URL) throw new Error('VITE_API_URL is not set')
+
+  const response = await fetch(`${API_URL}/evaluate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv, source, locale }),
+    signal,
+  })
+
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok || !payload?.ok) {
+    throw new EvaluationError(
+      payload?.error ?? 'evaluation_failed',
+      payload?.message ?? `evaluation failed: ${response.status}`,
+    )
+  }
+
+  return payload as EvaluationResponse
+}

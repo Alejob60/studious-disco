@@ -26,6 +26,8 @@ param(
   [string]$CrmApiBase = '',
   [string]$ForecastBucketName = '',
   [string]$AllowedOrigin = 'https://main.d28ukybtuih8pa.amplifyapp.com',
+  [string]$MongoSecretName = 'realculture/mongodb-atlas-uri',
+  [string]$MongoDbName = 'atelier_predict',
   [switch]$SkipDeploy
 )
 
@@ -40,7 +42,7 @@ $awsArgs = @('--region', $Region, '--profile', $Profile)
 # goes from a 2.4 MB download to roughly 10 KB zipped on the path that runs on every
 # page load. Pointing it at a bucket switches the TimesFM challenger on, which needs
 # the S3 SDK and costs that bundle about 8.4 MB: an explicit trade, so it is opt-in.
-$Functions = @('forecast', 'agent', 'lead')
+$Functions = @('forecast', 'agent', 'lead', 'evaluate')
 $bundleArgs = @()
 if ($ForecastBucketName) {
   $bundleArgs += '--with-s3'
@@ -113,6 +115,7 @@ $paramList = @(
   "ParameterKey=CodeKey,ParameterValue=$($codeKeys['agent'])",
   "ParameterKey=ForecastCodeKey,ParameterValue=$($codeKeys['forecast'])",
   "ParameterKey=LeadCodeKey,ParameterValue=$($codeKeys['lead'])",
+  "ParameterKey=EvaluateCodeKey,ParameterValue=$($codeKeys['evaluate'])",
   "ParameterKey=BedrockModelId,ParameterValue=$ModelId",
   "ParameterKey=BedrockFoundationModelId,ParameterValue=$FoundationModelId",
   "ParameterKey=ResendSecretName,ParameterValue=$ResendSecretName",
@@ -121,7 +124,9 @@ $paramList = @(
   "ParameterKey=LeadSourceTag,ParameterValue=$LeadSourceTag",
   "ParameterKey=CrmApiBase,ParameterValue=$CrmApiBase",
   "ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName",
-  "ParameterKey=AllowedOrigin,ParameterValue=$AllowedOrigin"
+  "ParameterKey=AllowedOrigin,ParameterValue=$AllowedOrigin",
+  "ParameterKey=MongoSecretName,ParameterValue=$MongoSecretName",
+  "ParameterKey=MongoDbName,ParameterValue=$MongoDbName"
 )
 
 $stackExists = (aws cloudformation describe-stacks @awsArgs --stack-name $StackName --query 'Stacks[0].StackId' --output text 2>$null)

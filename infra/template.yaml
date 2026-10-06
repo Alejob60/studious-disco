@@ -84,6 +84,22 @@ Parameters:
       wildcard origin lets any page on the internet drive this account. Add a
       second value as a comma-separated list only when a second frontend exists;
       a judge opening the site on a branch or custom domain will need it here.
+  EvaluateCodeKey:
+    Type: String
+    Default: atelier-predict-evaluate.zip
+    Description: Object key of the evaluation bundle (MongoDB driver plus Secrets Manager).
+  MongoSecretName:
+    Type: String
+    Default: realculture/mongodb-atlas-uri
+    Description: >
+      Secrets Manager secret holding the MongoDB Atlas connection string. Reused
+      from the existing cluster in this account instead of provisioning a new
+      database: it is reached over its public endpoint, so no VPC or NAT gateway is
+      needed. The function writes only to its own `atelier_predict` database.
+  MongoDbName:
+    Type: String
+    Default: atelier_predict
+    Description: Database the evaluation function writes to. Kept separate from the collections already in the cluster.
 
 Conditions:
   # Long form on purpose: nested short-form functions inside a flow sequence are
@@ -376,6 +392,92 @@ Resources:
       RouteKey: POST /lead
       Target: !Sub 'integrations/${LeadIntegration}'
 
+  # ---------------------------------------------------------------------------
+  # Real-data evaluation
+  #
+  # The only function in the stack that writes anywhere. It runs the same backtest
+  # the demo dashboard runs, on the visitor's own series, and records the result
+  # so accuracy can be compared over time instead of asserted once.
+  #
+  # It is a separate function rather than a branch of the forecast Lambda because
+  # it carries the MongoDB driver, and folding that in would undo the whole point
+  # of the per-function bundles: the forecast path would again download megabytes
+  # to execute kilobytes on every page load.
+  # ---------------------------------------------------------------------------
+
+  EvaluateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Description: Execution role for the evaluation Lambda (logs plus one secret read).
+      Policies:
+        - PolicyName: read-mongo-uri
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadOnlyAtlasUri
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                # One secret, current version only. No write access to Secrets
+                # Manager and no other resource of any kind.
+                Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${MongoSecretName}*'
+
+  EvaluateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: atelier-predict-evaluate
+      Runtime: nodejs22.x
+      Handler: evaluate/index.handler
+      Role: !GetAtt EvaluateRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref EvaluateCodeKey
+      # Generous for Atlas: TLS plus the driver load on a cold start, and the
+      # network round trip is the reason this is not folded into another function.
+      Timeout: 30
+      MemorySize: 512
+      Description: Backtests a visitor's own demand series and records the result.
+      Environment:
+        Variables:
+          MONGO_SECRET_ID: !Ref MongoSecretName
+          MONGO_DB_NAME: !Ref MongoDbName
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: WARN
+
+  EvaluateIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt EvaluateFunction.Arn
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+
+  EvaluateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: POST /evaluate
+      Target: !Sub 'integrations/${EvaluateIntegration}'
+
+  EvaluateHealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: GET /evaluate/health
+      Target: !Sub 'integrations/${EvaluateIntegration}'
+
   LeadInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -403,6 +505,16 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
 
+  # Without this the route exists and every call answers 403, which looks exactly
+  # like a broken handler.
+  EvaluateInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt EvaluateFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
 Outputs:
   ApiUrl:
     Description: Base URL for the Atelier Predict API. GET on this path returns a service index.
@@ -423,5 +535,11 @@ Outputs:
   AgentFunctionArn:
     Description: ARN of the agent Lambda.
     Value: !GetAtt AgentFunction.Arn
+  EvaluateEndpoint:
+    Description: POST a CSV or an array to backtest the visitor's own demand series.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/evaluate'
+  EvaluateHealthEndpoint:
+    Description: GET to confirm the evaluation store is reachable.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/evaluate/health'
 
 

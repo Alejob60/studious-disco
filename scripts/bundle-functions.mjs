@@ -39,6 +39,14 @@ const FUNCTIONS = [
   },
   { name: 'agent', entry: 'agent/index.js', needsShared: true, packages: ['@aws-sdk/client-bedrock-runtime'] },
   { name: 'lead', entry: 'lead/index.js', needsShared: true, packages: ['@aws-sdk/client-secrets-manager'] },
+  // Carries the MongoDB driver, which is why it cannot be folded into forecast:
+  // the driver would put megabytes back on the hot path of every page load.
+  {
+    name: 'evaluate',
+    entry: 'evaluate/index.js',
+    needsShared: true,
+    packages: ['@aws-sdk/client-secrets-manager', 'mongodb'],
+  },
   {
     name: 'batch',
     entry: 'batch/index.js',
