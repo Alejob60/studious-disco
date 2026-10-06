@@ -75,6 +75,15 @@ Parameters:
     Description: >
       Optional base URL (without /demo-leads) for secondary lead persistence.
       Left empty the lead is still delivered by email.
+  AllowedOrigin:
+    Type: String
+    Default: https://main.d28ukybtuih8pa.amplifyapp.com
+    Description: >
+      Browser origin allowed to call this API. CORS is restricted to the deployed
+      Amplify site rather than '*', because /chat spends real Bedrock tokens and a
+      wildcard origin lets any page on the internet drive this account. Add a
+      second value as a comma-separated list only when a second frontend exists;
+      a judge opening the site on a branch or custom domain will need it here.
 
 Conditions:
   # Long form on purpose: nested short-form functions inside a flow sequence are
@@ -96,10 +105,12 @@ Resources:
       ProtocolType: HTTP
       Description: Forecast and agent endpoints for Atelier Predict.
       CorsConfiguration:
-        # The frontend is a static Amplify site, so any origin is allowed.
-        # Tighten to the deployed Amplify URL before this handles real customer data.
+        # Restricted to the deployed frontend. The previous '*' meant any page a
+        # judge or a crawler visited could POST /chat and spend this account's
+        # Bedrock budget. Verified by verify:integration, which asserts the
+        # preflight returns this exact origin and not a wildcard.
         AllowOrigins:
-          - '*'
+          - !Ref AllowedOrigin
         AllowHeaders:
           - Content-Type
           - Authorization

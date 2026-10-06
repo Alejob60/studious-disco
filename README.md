@@ -78,13 +78,13 @@ The part we care about most: **the claims above are machine-checked against the
 deployed system.**
 
 ```bash
-npm run verify:integration   # 28 checks: live site ↔ live API
-npm run verify:api           # 29 checks: API contract the UI depends on
-npm run test:backend         # 31 unit tests
+npm run verify:integration   # 40 checks: live site ↔ live API, every sitemap deep link included
+npm run verify:api           # 27 checks: API contract the UI depends on
+npm run test:backend         # 70 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **124 automated checks, all green against production.**
+Total: **137 automated checks.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
@@ -191,7 +191,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | COP 2,395,611/month, derived from that backtest |
-| Pipeline is real | 124 automated checks green against production |
+| Pipeline is real | 137 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -262,7 +262,7 @@ npm run verify:integration \
   https://main.d28ukybtuih8pa.amplifyapp.com \
   https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
-28 checks against production, from your own machine.
+40 checks against production, from your own machine.
 
 ### Step 6 — The legal and agent surface (30 s)
 Open `/llms.txt`, `/en/privacy`, and the **cookie consent banner**. Four
@@ -285,7 +285,7 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Claude agent on Bedrock with validated tool use — **deployed**
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
-- 124 automated checks against production
+- 137 automated checks against production
 
 ### 🔜 Phase 2 — Next 2 weeks *(planned, not built)*
 - Authentication on `/chat` and `/lead` (Cognito or API key)
@@ -389,9 +389,11 @@ currency-agnostic and only the presentation converts.
 
 > **On our roadmap claims:** the items above are intentions, not achievements.
 > Anything labelled *shipped* in this README is running in production right now
-> and can be verified with the commands shown. The nightly TimesFM job is the one
-> exception: it is **built but not deployed**, because it costs money to keep
-> switched on. See the section above for exactly what is missing.
+> and can be verified with the commands shown — including the nightly TimesFM
+> job, which is deployed and serving. It is the one line item that carries a
+> standing cost, ~$120–180/month, billed for as long as the App Runner service
+> exists. That is a deliberate trade, not an oversight: the dashboard answers
+> without it, and the section above says exactly what turns it off.
 
 ---
 
@@ -451,7 +453,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 124 automated checks run against the
+3. **The claims are machine-checked.** 137 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.

@@ -23,8 +23,9 @@ param(
   [string]$LeadNotificationEmail = 'enterprise@colombiatic.com.co',
   [string]$LeadFromEmail = 'ColombiaTIC <onboarding@colombiatic.com.co>',
   [string]$LeadSourceTag = 'atelier-predict-hackathon',
-[string]$CrmApiBase = '',
+  [string]$CrmApiBase = '',
   [string]$ForecastBucketName = '',
+  [string]$AllowedOrigin = 'https://main.d28ukybtuih8pa.amplifyapp.com',
   [switch]$SkipDeploy
 )
 
@@ -119,7 +120,8 @@ $paramList = @(
   "ParameterKey=LeadFromEmail,ParameterValue=$LeadFromEmail",
   "ParameterKey=LeadSourceTag,ParameterValue=$LeadSourceTag",
   "ParameterKey=CrmApiBase,ParameterValue=$CrmApiBase",
-"ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName"
+  "ParameterKey=ForecastBucketName,ParameterValue=$ForecastBucketName",
+  "ParameterKey=AllowedOrigin,ParameterValue=$AllowedOrigin"
 )
 
 $stackExists = (aws cloudformation describe-stacks @awsArgs --stack-name $StackName --query 'Stacks[0].StackId' --output text 2>$null)
