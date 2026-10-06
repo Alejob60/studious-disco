@@ -43,9 +43,20 @@ const es = {
     loading: 'Consultando la API',
   },
 kpis: {
-    title: 'Indicadores clave',
+title: 'Indicadores clave',
     model: 'Modelo: Holt-Winters estacional · período 7 días',
     vsWeek: 'vs. semana actual',
+    demandLabel: 'Demanda predicha (7 días)',
+    demandHint: 'Suma del pronóstico frente a {units} unidades reales de la semana en curso.',
+    savingsLabel: 'Ahorro en reposición (30 días)',
+    savingsHint:
+      'Backtest: el modelo comete {modelMae} unidades/día de error frente a {baselineMae} del baseline estacional, a un margen de {margin} por unidad. Ahorro {savings} a {rate} COP/USD.',
+    accuracyLabel: 'Precisión del modelo (WAPE)',
+    accuracyHint:
+      'Validado sobre {holdout} días retenidos. Baseline estacional: {baseline}% → modelo: {model}% ({improvement}% mejor).',
+    unit: 'unid.',
+    usd: 'USD',
+    percent: '%',
   },
   lab: {
     eyebrow: 'Pruébalo con tus datos',
@@ -285,6 +296,17 @@ const en: Dictionary = {
 title: 'Key metrics',
     model: 'Model: seasonal Holt-Winters · 7-day period',
     vsWeek: 'vs. current week',
+    demandLabel: 'Forecast demand (7 days)',
+    demandHint: 'Sum of the projection against {units} real units for the week in progress.',
+    savingsLabel: 'Replenishment savings (30 days)',
+    savingsHint:
+      'Backtest: the model misses by {modelMae} units/day against {baselineMae} for the seasonal baseline, at a {margin} margin per unit. Worth {savings} at {rate} COP/USD.',
+    accuracyLabel: 'Model precision (WAPE)',
+    accuracyHint:
+      'Measured on {holdout} held-out days. Seasonal baseline: {baseline}% → model: {model}% ({improvement}% better).',
+    unit: 'units',
+    usd: 'USD',
+    percent: '%',
   },
   lab: {
     eyebrow: 'Try it on your data',

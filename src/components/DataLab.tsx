@@ -4,7 +4,7 @@ import { useI18n } from '../i18n/I18nProvider'
 import { trackEvent } from '../lib/analytics'
 import { EvaluationError, evaluateSeries, isApiConfigured, type EvaluationResponse } from '../lib/api'
 import { formatMoneyUsd } from '../lib/currency'
-import { formatNumber } from '../lib/format'
+import { formatDayLabel, formatNumber } from '../lib/format'
 
 /**
  * "Try it on your own data."
@@ -220,40 +220,49 @@ function Result({ result }: { result: EvaluationResponse }) {
 
   const better = metrics.wape < metrics.baselineWape
 
+  // `kpis.peakDay` is a Spanish label built by the backend from a fixed weekday
+  // table. The forecast array carries ISO dates, so the label is rendered here in
+  // the reader's language instead.
+  const peakDay = formatDayLabel(peakDate(result.forecast), locale)
+
   return (
     <div className="mt-4 space-y-5">
       <div className="grid grid-cols-2 gap-3">
         <Metric
           label={t('lab.metricWape')}
-          value={`${metrics.wape}%`}
+          value={`${formatNumber(metrics.wape, 2, locale)}%`}
           hint={t('lab.metricWapeHint')}
           emphasis
         />
         <Metric
           label={t('lab.metricBaseline')}
-          value={`${metrics.baselineWape}%`}
+          value={`${formatNumber(metrics.baselineWape, 2, locale)}%`}
           hint={t('lab.metricBaselineHint')}
         />
         <Metric
           label={t('lab.metricImprovement')}
-          value={`${better ? '+' : ''}${metrics.improvementPct}%`}
+          value={`${better ? '+' : ''}${formatNumber(metrics.improvementPct, 2, locale)}%`}
           hint={t('lab.metricImprovementHint')}
           emphasis={better}
         />
         <Metric
           label={t('lab.metricMae')}
-          value={formatNumber(metrics.modelMaeUnits, 1)}
-          hint={t('lab.metricMaeHint', { baseline: formatNumber(metrics.baselineMaeUnits, 1) })}
+          value={formatNumber(metrics.modelMaeUnits, 1, locale)}
+          hint={t('lab.metricMaeHint', {
+            baseline: formatNumber(metrics.baselineMaeUnits, 1, locale),
+          })}
         />
       </div>
 
       <div className="rounded-xl border border-line bg-ink p-4 text-sm text-body">
         <p className="leading-relaxed">
           {t('lab.resultSentence', {
-            points: formatNumber(result.points),
-            holdout: formatNumber(metrics.holdoutPoints),
-            peak: kpis.peakDay,
-            units: formatNumber(kpis.peakUnits),
+            points: formatNumber(result.points, 0, locale),
+            holdout: formatNumber(metrics.holdoutPoints, 0, locale),
+            // The peak is derived from the forecast dates rather than read from
+            // `kpis.peakDay`, which the backend always renders in Spanish.
+            peak: peakDay,
+            units: formatNumber(kpis.peakUnits, 0, locale),
           })}
         </p>
         {kpis.inventorySavingsCop > 0 && (
@@ -274,6 +283,15 @@ function Result({ result }: { result: EvaluationResponse }) {
       </p>
     </div>
   )
+}
+
+/** ISO date of the highest projected point, or today when there is no projection. */
+function peakDate(forecast: { date: string; value: number }[]): string {
+  const peak = forecast.reduce(
+    (best, point) => (point.value > (best?.value ?? -Infinity) ? point : best),
+    forecast[0],
+  )
+  return peak?.date ?? new Date().toISOString().slice(0, 10)
 }
 
 function Metric({

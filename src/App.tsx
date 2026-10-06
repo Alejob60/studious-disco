@@ -15,7 +15,7 @@ import { I18nProvider, isLocale, useI18n } from './i18n/I18nProvider'
 import { detectLocale } from './i18n/detectLocale'
 import type { Locale } from './i18n/dictionaries'
 import { SeoHead } from './components/SeoHead'
-import { toChartPoints, toKpis } from './lib/forecast-view'
+import { toChartPoints, toKpis, peakDayLabel } from './lib/forecast-view'
 import { trackForecastSource } from './lib/analytics'
 import { useForecast } from './lib/useForecast'
 
@@ -48,9 +48,10 @@ function DocumentLang() {
 }
 
 function Landing() {
+  const { locale } = useI18n()
   const { data, source, loading, warning } = useForecast()
-  const { points, forecastStartIndex } = toChartPoints(data)
-  const kpis = toKpis(data)
+  const { points, forecastStartIndex } = toChartPoints(data, locale)
+  const kpis = toKpis(data, locale)
 
   // Report the data provenance once per load. A session recorded as `mock` means
   // the dashboard fell back to bundled data, which must be visible in GA4.
@@ -67,7 +68,7 @@ function Landing() {
           points={points}
           forecastStartIndex={forecastStartIndex}
           metrics={data.metrics}
-          peakDay={data.kpis.peakDay}
+          peakDay={peakDayLabel(data, locale)}
           peakUnits={data.kpis.peakUnits}
         />
     </Suspense>

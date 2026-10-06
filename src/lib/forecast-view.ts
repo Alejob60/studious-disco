@@ -6,6 +6,7 @@
 
 import type { ForecastResponse } from './api'
 import { COP_PER_USD, UNIT_MARGIN_COP, formatMoneyUsd, toUsd } from './currency'
+import { formatDayLabel, formatNumber } from './format'
 
 /** One x-axis slot. `real` and `predicted` overlap on the boundary day. */
 export type ChartPoint = {
@@ -16,30 +17,42 @@ export type ChartPoint = {
   upper: number | null
 }
 
+/**
+ * A KPI tile carries dictionary keys, not rendered text.
+ *
+ * These labels used to be Spanish string literals built here, so the English
+ * route showed "Demanda predicha" and "Precisión del modelo". The values are
+ * computed here; the words belong to the dictionary.
+ */
 export type DisplayKpi = {
   id: string
-  label: string
+  labelKey: string
+  labelVars?: Record<string, string | number>
+  hintKey: string
+  hintVars?: Record<string, string | number>
   value: number
   prefix?: string
-  suffix?: string
+  suffixKey?: string
   decimals: number
   /** Omitted when there is no honest period-over-period comparison to show. */
   delta?: number
   higherIsBetter?: boolean
-  hint: string
 }
 
 /** How many historical days to plot before the forecast window starts. */
 const HISTORY_WINDOW = 21
 
-export function toChartPoints(data: ForecastResponse): {
+export function toChartPoints(
+  data: ForecastResponse,
+  locale: 'es' | 'en',
+): {
   points: ChartPoint[]
   forecastStartIndex: number
 } {
   const history = data.history.slice(-HISTORY_WINDOW)
 
   const points: ChartPoint[] = history.map((point) => ({
-    day: point.label,
+    day: formatDayLabel(point.date, locale),
     real: point.value,
     predicted: null,
     lower: null,
@@ -52,7 +65,7 @@ export function toChartPoints(data: ForecastResponse): {
 
   data.forecast.forEach((point, index) => {
     points.push({
-      day: point.label,
+      day: formatDayLabel(point.date, locale),
       real: index < boundary ? lastReal : null,
       predicted: point.value,
       lower: point.lower,
@@ -63,40 +76,67 @@ export function toChartPoints(data: ForecastResponse): {
   return { points, forecastStartIndex: points.length - data.forecast.length - 1 }
 }
 
-export function toKpis(data: ForecastResponse): DisplayKpi[] {
+/**
+ * The day the projection peaks, rendered in the reader's language.
+ *
+ * Derived from the forecast array rather than read from `kpis.peakDay`, because
+ * that field is a Spanish label built by the backend from a fixed weekday table.
+ */
+export function peakDayLabel(data: ForecastResponse, locale: 'es' | 'en'): string {
+  const peak = data.forecast.reduce(
+    (best, point) => (point.value > (best?.value ?? -Infinity) ? point : best),
+    data.forecast[0],
+  )
+  return peak ? formatDayLabel(peak.date, locale) : ''
+}
+
+export function toKpis(data: ForecastResponse, locale: 'es' | 'en'): DisplayKpi[] {
   const { kpis, metrics } = data
-  const num = (value: number) =>
-    new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(value)
+  const num = (value: number) => formatNumber(value, 0, locale)
 
   return [
     {
       id: 'demand',
-      label: 'Demanda predicha (7 días)',
+      labelKey: 'kpis.demandLabel',
+      hintKey: 'kpis.demandHint',
+      hintVars: { units: num(kpis.previousWeekUnits) },
       value: kpis.weekAheadUnits,
-      suffix: 'unid.',
+      suffixKey: 'kpis.unit',
       decimals: 0,
       delta: kpis.weekAheadDeltaPct,
       higherIsBetter: true,
-      hint: `Suma del pronóstico frente a ${num(kpis.previousWeekUnits)} unidades reales de la semana en curso.`,
     },
     {
       id: 'savings',
-      label: 'Ahorro en reposición (30 días)',
+      labelKey: 'kpis.savingsLabel',
+      hintKey: 'kpis.savingsHint',
+      hintVars: {
+        modelMae: formatNumber(metrics.modelMaeUnits, 2, locale),
+        baselineMae: formatNumber(metrics.baselineMaeUnits, 2, locale),
+        margin: formatMoneyUsd(UNIT_MARGIN_COP, locale),
+        savings: formatMoneyUsd(kpis.inventorySavingsCop, locale),
+        rate: formatNumber(COP_PER_USD, 0, locale),
+      },
       // USD leads because the reviewers are US-based; the COP equivalent stays in
       // the hint so the conversion is auditable rather than asserted.
       value: toUsd(kpis.inventorySavingsCop),
       prefix: '$',
-      suffix: ' USD',
+      suffixKey: 'kpis.usd',
       decimals: 0,
-      hint: `Backtest: el modelo comete ${metrics.modelMaeUnits} unidades/día de error frente a ${metrics.baselineMaeUnits} del baseline estacional, a un margen de ${formatMoneyUsd(UNIT_MARGIN_COP, 'es')} por unidad. Ahorro ${formatMoneyUsd(kpis.inventorySavingsCop, 'es')} a ${COP_PER_USD.toLocaleString('es-CO')} COP/USD.`,
     },
     {
       id: 'accuracy',
-      label: 'Precisión del modelo (WAPE)',
+      labelKey: 'kpis.accuracyLabel',
+      hintKey: 'kpis.accuracyHint',
+      hintVars: {
+        holdout: metrics.holdoutPoints,
+        baseline: formatNumber(metrics.baselineWape, 2, locale),
+        model: formatNumber(metrics.wape, 2, locale),
+        improvement: formatNumber(metrics.improvementPct, 2, locale),
+      },
       value: metrics.wape,
-      suffix: '%',
+      suffixKey: 'kpis.percent',
       decimals: 2,
-      hint: `Validado sobre ${metrics.holdoutPoints} días retenidos. Baseline estacional: ${metrics.baselineWape}% → modelo: ${metrics.wape}% (${metrics.improvementPct}% mejor).`,
     },
   ]
 }

@@ -7,10 +7,13 @@ import type { DisplayKpi } from '../lib/forecast-view'
 import { useI18n } from '../i18n/I18nProvider'
 
 /** One KPI tile. Isolated so the count-up animation owns a single ref. */
-function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
+function KpiCard({ kpi, index, locale }: { kpi: DisplayKpi; index: number; locale: 'es' | 'en' }) {
   const { t } = useI18n()
   const reduceMotion = useReducedMotion()
   const { ref, value } = useCountUp(kpi.value, kpi.decimals)
+
+  const label = t(kpi.labelKey, kpi.labelVars)
+  const hint = t(kpi.hintKey, kpi.hintVars)
 
   // Only render a trend chip when there is an honest comparison to make.
   const hasDelta = typeof kpi.delta === 'number' && Number.isFinite(kpi.delta)
@@ -35,8 +38,8 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
 
       <div className="relative flex items-start justify-between gap-3">
         <h3 className="flex items-center gap-1.5 text-sm font-medium text-body">
-          {kpi.label}
-          <span title={kpi.hint} className="text-white/25 transition-colors group-hover:text-gold/60">
+          {label}
+          <span title={hint} className="text-white/25 transition-colors group-hover:text-gold/60">
             <Info className="size-3.5" />
           </span>
         </h3>
@@ -44,8 +47,8 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
 
       <p className="relative mt-4 flex items-baseline gap-0.5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
         {kpi.prefix && <span className="text-lg text-gold">{kpi.prefix}</span>}
-        <span ref={ref}>{formatNumber(value, kpi.decimals)}</span>
-        {kpi.suffix && <span className="text-base font-medium text-body">{kpi.suffix}</span>}
+        <span ref={ref}>{formatNumber(value, kpi.decimals, locale)}</span>
+        {kpi.suffixKey && <span className="text-base font-medium text-body">{t(kpi.suffixKey)}</span>}
       </p>
 
       {hasDelta ? (
@@ -55,11 +58,11 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
           }`}
         >
           <TrendIcon className="size-3.5" strokeWidth={2.5} />
-          {formatDelta(kpi.delta!, Number.isInteger(kpi.delta) ? 0 : 2)}
+          {formatDelta(kpi.delta!, Number.isInteger(kpi.delta) ? 0 : 2, locale)}
           <span className="text-body">{t('kpis.vsWeek')}</span>
         </p>
       ) : (
-        <p className="relative mt-3 text-xs leading-relaxed text-white/45">{kpi.hint}</p>
+        <p className="relative mt-3 text-xs leading-relaxed text-white/45">{hint}</p>
       )}
     </motion.article>
   )
@@ -67,7 +70,7 @@ function KpiCard({ kpi, index }: { kpi: DisplayKpi; index: number }) {
 
 /** The three headline metrics directly under the hero. */
 export function KpiCards({ kpis }: { kpis: DisplayKpi[] }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   return (
     <section id="kpis" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -80,7 +83,7 @@ export function KpiCards({ kpis }: { kpis: DisplayKpi[] }) {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpi, i) => (
-          <KpiCard key={kpi.id} kpi={kpi} index={i} />
+          <KpiCard key={kpi.id} kpi={kpi} index={i} locale={locale} />
         ))}
       </div>
     </section>
