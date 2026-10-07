@@ -78,13 +78,13 @@ The part we care about most: **the claims above are machine-checked against the
 deployed system.**
 
 ```bash
-npm run verify:integration   # 57 checks: live site ↔ live API, deep links, the real-data lab and the ledger
+npm run verify:integration   # 61 checks: live site ↔ live API, deep links, the lab, the ledger, the data diagnostics
 npm run verify:api           # 27 checks: API contract the UI depends on
 npm run test:backend         # 109 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **202 automated checks.**
+Total: **219 automated checks.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
@@ -120,7 +120,39 @@ Spreadsheet exports are not clean arrays, and reading `1.234` as `1234` produces
 a confidently wrong forecast with nothing to indicate otherwise. So the delimiter
 decides how the decimal mark is read — a semicolon means a locale that writes
 `1.234,50` — and ambiguous forms are refused rather than guessed. A rejection
-names the line and the problem.
+names the line and the problem. Dates are read day-first, because every locale
+that writes slashes means day-first, and misreading a Colombian export would
+scramble the weekly seasonality the model depends on.
+
+#### The data is inspected before it is scored
+
+This is the part that matters commercially, and the failure it prevents is silent.
+
+A retailer's export contains days when the shelf was empty and nothing was sold,
+days the store was shut, and promotions nobody mentioned. Feed those to a model
+and it learns "those weekdays are quiet", then under-forecasts from then on.
+**Nothing throws and the WAPE still looks respectable.** That is how a demand
+forecast quietly becomes wrong.
+
+So the series is inspected first and the findings ship with the score. A run of
+zero days is named as a possible stock-out with its dates, gaps in the calendar
+are found when the file carried them, and promotion-sized spikes are called out at
+low severity. **Nothing is imputed** — a number we quietly fix is a number nobody
+can reproduce — and the score is still shown, because hiding it would hide the
+problem. What changes is the claim: the panel says the WAPE should not be read as
+model quality on clean data.
+
+There are two sample files, and the difference is the demonstration:
+
+| | WAPE | Reported as |
+|---|---|---|
+| **`sample-demand.csv`** — a clean POS export | 8.88 % | trustworthy |
+| **`sample-demand-real.csv`** — same shop, two stock-outs, a closure week, two promotions | **9.42 %** | **not trustworthy**, three zero-runs named |
+
+The score gets *worse* with the disruptions, which is the honest result, and the
+diagnostics say why. The integration suite asserts both: that the disrupted file
+comes back untrustworthy with a high-severity finding, and that it scores worse
+rather than better.
 
 **Every evaluation is recorded** in a MongoDB Atlas cluster already running in
 this account, in its own `atelier_predict` database, with a 90-day TTL index so
@@ -276,7 +308,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | COP 2,395,611/month, derived from that backtest |
-| Pipeline is real | 202 automated checks against the deployed system |
+| Pipeline is real | 219 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -347,7 +379,7 @@ npm run verify:integration \
   https://main.d28ukybtuih8pa.amplifyapp.com \
   https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
-57 checks against production, from your own machine.
+61 checks against production, from your own machine.
 
 ### Step 6 — Score your own data (90 s)
 1. Scroll to **"Try it on your data"** and press **Load the sample series**
@@ -385,7 +417,7 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
 - Every sitemap route served as a real page, not a rewrite the CDN ignored
-- 202 automated checks against production
+- 219 automated checks against production
 
 ### 🔜 Phase 2 — Commercial build *(first slice shipped above)*
 - **The control dashboard.** The aggregate ledger above is the first piece; what
@@ -562,7 +594,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 202 automated checks run against the
+3. **The claims are machine-checked.** 219 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.
