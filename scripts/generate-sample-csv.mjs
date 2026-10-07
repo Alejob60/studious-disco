@@ -7,11 +7,16 @@
  * a visitor can edit it, upload it, and watch the model score their own numbers
  * instead of ours.
  *
- * It is deliberately not a straight line. Retail demand has a weekly rhythm
- * (Saturday is the peak, Wednesday the trough), a mild upward drift, a payday
- * bump twice a month and a holiday spike. A series with none of that produces a
- * forecast that looks fine and proves nothing, because Holt-Winters only has to
- * beat the baseline on structure the baseline can already copy.
+ * Two files are generated, and the difference between them is the point:
+ *
+ *   sample-demand.csv        what a clean POS export looks like
+ *   sample-demand-real.csv   the same shop after reality happened to it
+ *
+ * The second one is not a joke. A fortnight with an empty shelf, a week the store
+ * was shut, and two promotions are all ordinary, and feeding them to the model
+ * silently produces a worse forecast that still reports a respectable WAPE. That
+ * is the failure a retail customer would actually hit, so the demo shows the
+ * diagnostics catching it rather than describing it.
  *
  * Run from `postbuild`, so the download and the demo can never disagree.
  */
@@ -28,19 +33,21 @@ START.setDate(START.getDate() - DAYS)
 // Weekly shape as a multiplier. Saturday carries the basket, Sunday collapses.
 const WEEKDAY = [0.74, 0.79, 0.86, 0.9, 1.02, 1.31, 1.58]
 
-function buildSeries() {
+// Deterministic noise, so the two files are the same series apart from the events
+// below. That isolation is what makes a difference in WAPE attributable.
+let seed = 20260401
+function random() {
+  seed = (seed * 1664525 + 1013904223) % 4294967296
+  return seed / 4294967296
+}
+
+/**
+ * The base series: weekly rhythm, drift, payday and holidays, no disruptions.
+ * Shared by both files, re-seeded so they are identical before the events land.
+ */
+function buildBase() {
+  seed = 20260401
   const rows = []
-  // The noise sequence is seeded, so the *values* are reproducible. The series is
-  // still anchored to the build date, because a sample export whose last row is
-  // four months old looks stale. That means the weekly multipliers land on
-  // different weekdays after a rebuild, and the measured WAPE moves with them:
-  // between two builds we have seen 10.40 % and 8.88 % on this same file. The
-  // reader is told the ledger is not a trend for exactly this reason.
-  let seed = 20260401
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296
-    return seed / 4294967296
-  }
 
   for (let index = 0; index < DAYS; index += 1) {
     const date = new Date(START)
@@ -54,11 +61,61 @@ function buildSeries() {
     // implausibly low error and read as a tuned demo rather than a real shop.
     const noise = 1 + (random() - 0.5) * 0.34
 
-    const value = Math.max(1, Math.round(96 * drift * WEEKDAY[date.getDay()] * payday * holiday * noise))
-    rows.push({ date, value })
+    rows.push({ date, value: Math.max(1, Math.round(96 * drift * WEEKDAY[date.getDay()] * payday * holiday * noise)) })
   }
 
   return rows
+}
+
+/**
+ * The same shop, a month later.
+ *
+ * Each disruption is something a real retailer recognises, and each is a trap for
+ * a forecaster that trusts the file:
+ *
+ *   - A stock-out reads as zero demand, and the model learns those weekdays are
+ *     quiet. This is the most common way a demand forecast silently goes wrong.
+ *   - A closure week is seven consecutive zeros that are not even a demand signal.
+ *   - A promotion is a spike with nothing in the calendar to anticipate it from.
+ *
+ * The events sit well before the last fortnight so the held-out window stays
+ * clean: the point is what the model *learns* from the past, not a rigged test.
+ */
+function disrupt(rows) {
+  const applied = []
+
+  // Two stock-out episodes, 4 and 3 days, on ordinary weekdays.
+  for (const [start, length] of [[40, 4], [95, 3]]) {
+    for (let i = 0; i < length; i += 1) {
+      const row = rows[start + i]
+      if (row && row.value > 0) {
+        row.value = 0
+        applied.push({ kind: 'stock_out', date: row.date })
+      }
+    }
+  }
+
+  // A week of closures.
+  for (let i = 0; i < 7; i += 1) {
+    const row = rows[130 + i]
+    if (row) {
+      row.value = 0
+      applied.push({ kind: 'closure', date: row.date })
+    }
+  }
+
+  // Two promotions: one a spike, one a deeper but longer discount run.
+  for (const [index, factor, length = 1] of [[70, 2.1], [150, 1.75, 3]]) {
+    for (let i = 0; i < length; i += 1) {
+      const row = rows[index + i]
+      if (row) {
+        row.value = Math.round(row.value * factor)
+        applied.push({ kind: 'promotion', date: row.date })
+      }
+    }
+  }
+
+  return applied
 }
 
 /** Colombian retail peaks: Mother's Day in May, Father's Day in March, Christmas. */
@@ -74,23 +131,44 @@ function isHoliday(date) {
 const format = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
-const rows = buildSeries()
-
-// Comma delimiter and dot decimals, because that is what a developer or a POS
-// export produces. The parser also handles the Spanish-locale variant (`;` and a
-// comma decimal); using the plain one here keeps the sample readable.
-const csv = [
-  '# Atelier Predict — serie de demanda de ejemplo',
-  '# Tienda de barrio, 28 semanas, unidades vendidas por dia',
-  '# Edita estos numeros o subelo tal cual: el modelo lo evalua de verdad.',
-  'date,units',
-  ...rows.map((row) => `${format(row.date)},${row.value}`),
-  '',
-].join('\n')
+// Comma delimiter and dot decimals, because that is what a POS export or a
+// developer produces. The parser also handles the Spanish-locale variant (`;` and
+// a comma decimal); using the plain one keeps the sample readable.
+const render = (rows, header) =>
+  [...header, 'date,units', ...rows.map((row) => `${format(row.date)},${row.value}`), ''].join('\n')
 
 mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, 'sample-demand.csv'), csv, 'utf8')
 
-const first = rows[0].value
-const last = rows[rows.length - 1].value
-console.log(`generated sample-demand.csv (${rows.length} days, ${first} -> ${last} units/day)`)
+const clean = buildBase()
+const rough = buildBase()
+const applied = disrupt(rough)
+
+writeFileSync(
+  join(outDir, 'sample-demand.csv'),
+  render(clean, [
+    '# Atelier Predict — serie de demanda de ejemplo',
+    '# Tienda de barrio, 28 semanas, unidades vendidas por dia',
+    '# Edita estos numeros o subelo tal cual: el modelo lo evalua de verdad.',
+  ]),
+  'utf8',
+)
+
+writeFileSync(
+  join(outDir, 'sample-demand-real.csv'),
+  render(rough, [
+    '# Atelier Predict — la misma tienda, un mes despues',
+    '# Incluye lo que de verdad pasa: dos quiebres de stock, una semana de cierre',
+    '# y dos promociones. Sube este archivo y el sistema te dira que encontro.',
+    `# ${applied.length} eventos insertados; los ultimos 14 dias estan limpios a proposito`,
+  ]),
+  'utf8',
+)
+
+const range = (rows) => `${Math.min(...rows.map((r) => r.value))} a ${Math.max(...rows.map((r) => r.value))}`
+const zeroDays = rough.filter((r) => r.value === 0).length
+
+console.log(
+  `generated sample-demand.csv (${clean.length} days, ${range(clean)} units/day) ` +
+    `and sample-demand-real.csv (${rough.length} days, ${range(rough)} units/day, ` +
+    `${zeroDays} zero days across ${applied.length} disruptions)`,
+)

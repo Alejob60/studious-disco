@@ -214,7 +214,7 @@ EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
 | **MongoDB Atlas** | Stores each real-data evaluation. Reuses a cluster already in this account; its own database, 90-day TTL |
 | **S3** | Lambda artifacts plus the nightly `forecast.json` (public access fully blocked) |
 | **EventBridge** | One 04:30 UTC schedule that refreshes the challenger |
-| **App Runner** | Runs the foundation-model container. **Billed while it exists: ~$120–180/month** |
+| **App Runner** | Runs the foundation-model container. **Billed while it exists: ~$120–180/month.** In maintenance mode — see the note below |
 | **ECR Public** | The model image. Public because this App Runner API cannot authenticate a private one |
 | **CloudWatch** | JSON logs, 14-day retention |
 | **IAM** | Least-privilege role per function |
@@ -223,6 +223,16 @@ EventBridge (04:30 UTC) ──► atelier-predict-batch ──► App Runner
 **This is not a wrapper around a hosted API.** Every number on the page is computed
 in a Lambda you can read, deploy with one command, and audit with two roles that
 cannot touch anything they do not need.
+
+> **Known platform risk: App Runner is in maintenance mode.** AWS stopped
+> accepting new customers on 30 April 2026 and states it will add no further
+> features. Existing customers keep working, and we can still create services —
+> this one was created in October, after that date — so **nothing needs to change
+> for the hackathon**, and no sunset date has been announced. It is recorded here
+> because it is the one service we depend on that AWS has signalled it is winding
+> down, and for the commercial phase AWS's own recommendation is ECS Express Mode.
+> The champion path does not depend on it: if the challenger is switched off,
+> `/forecast` falls back to Holt-Winters and the dashboard is unaffected.
 
 ---
 

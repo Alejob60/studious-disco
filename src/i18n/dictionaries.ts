@@ -66,6 +66,7 @@ title: 'Indicadores clave',
     stepDataBody:
       'Descarga la serie de ejemplo de una tienda (28 semanas con ritmo semanal, picos de quincena y un salto en Navidad) y edítala, o sube tu propio CSV. Aceptamos coma o punto y coma, y coma decimal.',
     loadSample: 'Cargar la serie de ejemplo',
+    loadRough: 'Cargar la serie con incidentes',
     upload: 'Subir mi CSV',
     csvLabel: 'Contenido del CSV (editable)',
     csvPlaceholder: 'date,units\n2026-01-01,142\n2026-01-02,118',
@@ -91,6 +92,21 @@ title: 'Indicadores clave',
     persisted: 'Evaluación registrada como {id} y conservada {days} días.',
     notPersisted:
       'La métrica es real pero no se pudo guardar: la base de datos no respondió. El cálculo no depende de ella.',
+    qualityClean:
+      'Revisamos los {zero}% de días en cero y no vimos nada raro. El WAPE de arriba es comparable.',
+    qualityUnreliable:
+      'Esta serie tiene días que no son demanda. El WAPE está calculado igual, pero no debería leerse como la calidad del modelo sobre datos limpios: corrige el origen o excluye esos días y vuelve a correrlo.',
+    severity: {
+      high: 'grave',
+      medium: 'revisar',
+      low: 'informativo',
+    },
+    finding: {
+      possible_stock_out: 'Posible quiebre de stock',
+      missing_days: 'Faltan días en el calendario',
+      outliers: 'Picos fuera de lo normal',
+      constant_series: 'La serie es constante',
+    },
   },
   history: {
     title: 'Todo lo que hemos medido',
@@ -344,6 +360,7 @@ title: 'Key metrics',
     stepDataBody:
       'Download the sample series for a neighbourhood shop (28 weeks of weekly rhythm, payday bumps and a Christmas spike) and edit it, or upload your own CSV. Both comma and semicolon delimiters are accepted, as is a decimal comma.',
     loadSample: 'Load the sample series',
+    loadRough: 'Load the disrupted series',
     upload: 'Upload my CSV',
     csvLabel: 'CSV contents (editable)',
     csvPlaceholder: 'date,units\n2026-01-01,142\n2026-01-02,118',
@@ -369,6 +386,21 @@ title: 'Key metrics',
     persisted: 'Evaluation stored as {id} and kept for {days} days.',
     notPersisted:
       'The measurement is real but could not be stored: the database did not answer. The calculation does not depend on it.',
+    qualityClean:
+      'We looked at the {zero}% of zero days and found nothing unusual. The WAPE above is comparable.',
+    qualityUnreliable:
+      'This series contains days that are not demand. The WAPE is still computed, but it should not be read as the model quality on clean data: fix the source or exclude those days and run it again.',
+    severity: {
+      high: 'serious',
+      medium: 'review',
+      low: 'for information',
+    },
+    finding: {
+      possible_stock_out: 'Possible stock-out',
+      missing_days: 'Days missing from the calendar',
+      outliers: 'Points out of range',
+      constant_series: 'The series is constant',
+    },
   },
   history: {
     title: 'Everything we have measured',

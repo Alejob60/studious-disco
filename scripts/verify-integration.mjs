@@ -212,6 +212,27 @@ check('recent entries are returned', (ledger.recent?.length ?? 0) > 0, String(le
 const leaksSeries = JSON.stringify(ledger).includes('"series"')
 check('the ledger does not return the uploaded series', !leaksSeries)
 
+// The disrupted sample exists to prove the diagnostics fire on the failure a real
+// retailer hits. If it ever comes back clean, the sample or the diagnostics have
+// stopped being what this check assumes.
+const roughCsv = await (await fetch(`${origin}/sample-demand-real.csv`)).text()
+const rough = await (
+  await fetch(`${api}/evaluate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ csv: roughCsv, source: 'integration', locale: 'en' }),
+  })
+).json()
+
+check('the disrupted series is reported as untrustworthy', rough.dataQuality?.reliable === false, JSON.stringify(rough.dataQuality?.findings?.map((f) => f.code)))
+check(
+  'a stock-out run is detected',
+  (rough.dataQuality?.findings ?? []).some((f) => f.code === 'possible_stock_out' && f.severity === 'high'),
+)
+check('the disruption makes the score worse, not better', rough.metrics.wape > evaluated.metrics.wape, `${rough.metrics.wape} vs ${evaluated.metrics.wape}`)
+// Nothing is imputed: the days stay zero, so the number stays reproducible.
+check('the stock-out days were not silently filled in', rough.dataQuality?.suspectedStockOutDays > 0)
+
 console.log(
   failures.length === 0
     ? '\nAll integration checks passed.'

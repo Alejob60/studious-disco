@@ -76,7 +76,7 @@ export type AnalyticsEvent =
   | { name: 'forecast_source'; source: 'live' | 'mock' }
   // The real-data lab. `persisted` is the interesting one: it separates a session
   // that measured a series from one that also recorded it.
-  | { name: 'sample_csv_downloaded'; locale: string }
+  | { name: 'sample_csv_downloaded'; locale: string; sample: 'clean' | 'rough' }
   | { name: 'csv_uploaded'; size: number; locale: string }
   | { name: 'evaluation_completed'; points: number; persisted: boolean; locale: string }
 

@@ -40,7 +40,7 @@ const RETENTION_DAYS = 90
  * database. The series itself is kept: without it the accuracy history cannot be
  * recomputed later, which is the whole reason this exists.
  */
-function buildEvaluationDocument({ history, report, meta = {}, now = new Date() }) {
+function buildEvaluationDocument({ history, report, meta = {}, dataQuality = null, now = new Date() }) {
   const points = Array.isArray(history) ? history.length : 0
 
   return {
@@ -70,6 +70,17 @@ function buildEvaluationDocument({ history, report, meta = {}, now = new Date() 
       weekAheadUnits: report.kpis?.weekAheadUnits ?? null,
       unitsSavedPerDay: report.kpis?.unitsSavedPerDay ?? null,
       inventorySavingsCop: report.kpis?.inventorySavingsCop ?? null,
+    },
+
+    // Kept with the measurement so a later accuracy review knows whether the
+    // number was taken on data that had already been flagged. A WAPE computed over
+    // a fortnight of stock-outs is a different fact from one computed over clean
+    // data, and only the reader can say which they wanted.
+    dataQuality: {
+      reliable: dataQuality?.reliable ?? null,
+      findings: Array.isArray(dataQuality?.findings) ? dataQuality.findings.map((f) => f.code) : [],
+      longestZeroRun: dataQuality?.longestZeroRun ?? null,
+      missingCalendarDays: dataQuality?.missingCalendarDays ?? null,
     },
 
     // Enough to chart the series again without re-reading the array.

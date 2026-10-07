@@ -26,6 +26,9 @@ dist-ssr
 # Deployment staging artifacts
 infra/.staging
 infra/.staging-timesfm
+
+# Bundle built on demand by forecast-challenger.test.js
+backend/test/.bundle
 backend/node_modules
 
 # Python venv for the TimesFM challenger benchmark

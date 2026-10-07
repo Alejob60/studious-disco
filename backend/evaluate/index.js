@@ -1,5 +1,6 @@
 const { buildForecastReport } = require('../shared/forecast-engine.js')
 const { parseSubmission } = require('../shared/evaluate-input.js')
+const { analyseSeries } = require('../shared/series-diagnostics.js')
 const { buildEvaluationDocument, createPersistence } = require('../shared/evaluation-store.js')
 
 // POST /evaluate
@@ -93,6 +94,11 @@ async function handler(event) {
   const unitMargin = Number(payload.unitMargin) || UNIT_MARGIN_DEFAULT
   const series = parsed.series
 
+  // Inspected before it is modelled, and reported next to the result. Nothing is
+  // imputed: a fortnight of empty shelves is the reader's call to make, not ours
+  // to silently paper over.
+  const dataQuality = analyseSeries(series, { dates: parsed.dates })
+
   let report
   try {
     report = buildForecastReport(series, { horizon, unitMargin })
@@ -113,7 +119,9 @@ async function handler(event) {
   let evaluationId = null
 
   if (store) {
-    const outcome = await store.save(buildEvaluationDocument({ history: series, report, meta }))
+    const outcome = await store.save(
+      buildEvaluationDocument({ history: series, report, meta, dataQuality }),
+    )
     persisted = outcome.ok
     evaluationId = outcome.ok ? outcome.id : null
   }
@@ -131,6 +139,9 @@ async function handler(event) {
     forecast: report.forecast,
     // The last slice of history so a chart can be drawn without a second call.
     history: report.history,
+    // Whether the measurement above can be read as-is. A high-severity finding
+    // does not stop the scoring; it stops us calling the number trustworthy.
+    dataQuality,
 
     persistence: {
       // Named honestly: `enabled` is whether a store was configured, `persisted`

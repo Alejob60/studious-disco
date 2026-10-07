@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Download, Loader2, Upload } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, Loader2, ShieldCheck, Upload } from 'lucide-react'
 import { EvaluationHistory } from './EvaluationHistory'
 import { useI18n } from '../i18n/I18nProvider'
 import { trackEvent } from '../lib/analytics'
-import { EvaluationError, evaluateSeries, isApiConfigured, type EvaluationResponse } from '../lib/api'
+import { EvaluationError, evaluateSeries, isApiConfigured, type DataQuality, type EvaluationResponse } from '../lib/api'
 import { formatMoneyUsd } from '../lib/currency'
 import { formatDayLabel, formatNumber } from '../lib/format'
 
@@ -27,6 +27,8 @@ import { formatDayLabel, formatNumber } from '../lib/format'
  */
 
 const SAMPLE_URL = '/sample-demand.csv'
+/** The same shop with stock-outs, a closure week and two promotions. */
+const ROUGH_SAMPLE_URL = '/sample-demand-real.csv'
 
 /** Only the first rows are shown; the whole file stays in the textarea. */
 const PREVIEW_ROWS = 6
@@ -42,11 +44,11 @@ export function DataLab() {
   const [refreshToken, setRefreshToken] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  async function loadSample() {
-    trackEvent({ name: 'sample_csv_downloaded', locale })
+  async function loadSample(which: 'clean' | 'rough' = 'clean') {
+    trackEvent({ name: 'sample_csv_downloaded', locale, sample: which })
     // A plain anchor would be simpler, but the file is generated at build time in
     // the SPA's own public directory, so fetch keeps the origin check in one place.
-    const response = await fetch(SAMPLE_URL)
+    const response = await fetch(which === 'clean' ? SAMPLE_URL : ROUGH_SAMPLE_URL)
     const text = await response.text()
     setCsv(text)
     setStatus('idle')
@@ -119,11 +121,19 @@ export function DataLab() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={loadSample}
+              onClick={() => void loadSample('clean')}
               className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
             >
               <Download className="size-4" strokeWidth={2} />
               {t('lab.loadSample')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadSample('rough')}
+              className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
+            >
+              <AlertTriangle className="size-4" strokeWidth={2} />
+              {t('lab.loadRough')}
             </button>
             <button
               type="button"
@@ -279,6 +289,8 @@ function Result({ result }: { result: EvaluationResponse }) {
         )}
       </div>
 
+      <DataQualityPanel quality={result.dataQuality} />
+
       <p className="flex items-start gap-2 text-xs leading-relaxed text-body/70">
         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-gold" strokeWidth={2} />
         {persistence.persisted
@@ -299,6 +311,61 @@ function peakDate(forecast: { date: string; value: number }[]): string {
     forecast[0],
   )
   return peak?.date ?? new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * What the system noticed about the data before scoring it.
+ *
+ * The number above is always shown, even when this panel says it should not be
+ * trusted: hiding the score would hide the problem, and quietly dropping the
+ * offending days would produce a nicer number that nobody could reproduce.
+ *
+ * The stock-out case is the one that matters commercially. A fortnight of an empty
+ * shelf is recorded as zero sales, the model learns those weekdays are quiet, and
+ * it under-forecasts from then on. No error is raised anywhere in that chain.
+ */
+function DataQualityPanel({ quality }: { quality: DataQuality }) {
+  const { t } = useI18n()
+
+  if (!quality || quality.findings.length === 0) {
+    return (
+      <p className="flex items-start gap-2 text-xs leading-relaxed text-body/70">
+        <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-gold" strokeWidth={2} />
+        {t('lab.qualityClean', { zero: formatNumber(quality?.stats.zeroSharePct ?? 0, 1) })}
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {!quality.reliable && (
+        <p className="flex items-start gap-2 rounded-xl border border-aws/30 bg-aws-bg p-3 text-xs leading-relaxed text-aws">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
+          {t('lab.qualityUnreliable')}
+        </p>
+      )}
+
+      {quality.findings.map((finding) => (
+        <div
+          key={finding.code}
+          className={`rounded-xl border p-3 text-xs leading-relaxed ${
+            finding.severity === 'high'
+              ? 'border-aws/30 bg-aws-bg text-aws'
+              : 'border-line bg-ink text-body/80'
+          }`}
+        >
+          <p className="flex items-center gap-2 font-semibold">
+            {t(`lab.finding.${finding.code}`)}
+            <span className="font-normal opacity-70">{t(`lab.severity.${finding.severity}`)}</span>
+          </p>
+          <p className="mt-1">{finding.detail}</p>
+          {finding.when.length > 0 && (
+            <p className="mt-1 font-mono text-[11px] opacity-70">{finding.when.join(' · ')}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function Metric({

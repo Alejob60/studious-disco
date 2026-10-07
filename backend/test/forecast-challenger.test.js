@@ -2,14 +2,40 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { execFileSync } = require('node:child_process')
 const { join, resolve } = require('node:path')
-const { readFileSync } = require('node:fs')
+const { readFileSync, existsSync } = require('node:fs')
 
 const repoRoot = resolve(__dirname, '..', '..')
 const forecastSource = readFileSync(join(repoRoot, 'backend', 'forecast', 'index.js'), 'utf8')
 
-// The bundler lays each function out as .staging/<name>/<entry>, so the staged
-// entry repeats the function folder: .staging/forecast/forecast/index.js.
-const stagedForecast = join(repoRoot, 'infra', '.staging', 'forecast', 'forecast', 'index.js')
+// These cases need a bundle that genuinely has no S3 SDK in it, which is the
+// whole point: the champion must still answer when FORECAST_BUCKET is set but the
+// SDK was never packaged. `backend/node_modules` does contain that SDK, so
+// requiring the source in place would prove nothing.
+//
+// So the bundle is built here, into a directory this test owns, rather than read
+// from the shared `infra/.staging`. That directory only exists after a deploy,
+// which made `npm run test:backend` quietly depend on someone having deployed
+// first: on a clean checkout these three tests failed with a module-not-found
+// that had nothing to do with the code under test.
+const stagingDir = join(repoRoot, 'backend', 'test', '.bundle')
+
+function ensureBundle() {
+  // The bundler lays each function out as <name>/<entry>, so the staged entry
+  // repeats the function folder.
+  const staged = join(stagingDir, 'forecast', 'forecast', 'index.js')
+  if (existsSync(staged)) return staged
+
+  execFileSync(
+    process.execPath,
+    [join(repoRoot, 'scripts', 'bundle-functions.mjs'), join(repoRoot, 'backend'), stagingDir],
+    { encoding: 'utf8', timeout: 120_000, cwd: repoRoot }
+  )
+
+  assert.ok(existsSync(staged), `the bundler did not produce ${staged}`)
+  return staged
+}
+
+const stagedForecast = ensureBundle()
 
 // The handler treats an event with no path as the API root, so each test states
 // the route it means instead of relying on that default.

@@ -120,6 +120,33 @@ export type EvaluationPersistence = {
   retentionDays: number | null
 }
 
+export type DataQualityFinding = {
+  code: string
+  severity: 'high' | 'medium' | 'low'
+  when: string[]
+  detail: string
+  days: number
+}
+
+export type DataQuality = {
+  points: number
+  stats: {
+    min: number
+    max: number
+    mean: number
+    median: number
+    stdDev: number
+    coefficientOfVariation: number | null
+    zeroSharePct: number
+  }
+  longestZeroRun: number
+  suspectedStockOutDays: number
+  missingCalendarDays: number | null
+  /** False when a high-severity finding means the WAPE should not be read as-is. */
+  reliable: boolean
+  findings: DataQualityFinding[]
+}
+
 export type EvaluationResponse = {
   ok: true
   evaluatedAt: string
@@ -131,6 +158,7 @@ export type EvaluationResponse = {
   kpis: ForecastKpis
   forecast: ForecastProjection[]
   history: ForecastPoint[]
+  dataQuality: DataQuality
   persistence: EvaluationPersistence
 }
 
