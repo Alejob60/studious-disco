@@ -1,0 +1,113 @@
+{
+  "$comment": "Executable data contract. Every example here is run against the real parser by backend/test/data-contract.test.js, and docs/CONTRATO-DATOS.md is generated from it. If the parser and this file ever disagree, the test fails rather than the documentation lying.",
+
+  "minPoints": 28,
+  "maxPoints": 365,
+  "recommendedMinPoints": 90,
+  "granularity": "daily",
+  "columns": {
+    "accepted": [
+      { "name": "units", "why": "the measured value; the whole point of the file" },
+      { "name": "unit", "why": "singular spelling of the same" },
+      { "name": "unidades", "why": "the Spanish header, which is what a Colombian export usually carries" },
+      { "name": "qty", "why": "what most POS systems name it" },
+      { "name": "quantity", "why": "full spelling of qty" },
+      { "name": "cantidad", "why": "Spanish spelling of qty" },
+      { "name": "ventas", "why": "some systems export the sold count under this name" },
+      { "name": "sales", "why": "English counterpart of ventas" },
+      { "name": "value", "why": "generic, but unambiguous in a two-column file" },
+      { "name": "valor", "why": "Spanish counterpart of value" },
+      { "name": "demanda", "why": "what the model is predicting, named as such" },
+      { "name": "demand", "why": "English counterpart of demanda" }
+    ],
+    "notAccepted": [
+      { "name": "precio", "why": "a price is not a demand count, so accepting it would model money instead of units" },
+      { "name": "total", "why": "ambiguous between a line total and a day total" },
+      { "name": "stock", "why": "not a demand measure. See openColumns below." },
+      { "name": "inventario", "why": "same: a quantity on hand, not a quantity sold" }
+    ]
+  },
+
+  "dateColumns": {
+    "accepted": [
+      { "name": "date", "why": "" },
+      { "name": "fecha", "why": "the Spanish header" },
+      { "name": "dia", "why": "Spanish for day, with or without the accent" },
+      { "name": "día", "why": "same with the accent" },
+      { "name": "day", "why": "English" },
+      { "name": "periodo", "why": "some BI exports label the column this way" },
+      { "name": "period", "why": "English counterpart of periodo" }
+    ],
+    "formats": [
+      { "format": "YYYY-MM-DD", "example": "2026-03-24", "why": "unambiguous, and the safest thing to send" },
+      { "format": "DD/MM/YYYY", "example": "24/03/2026", "why": "what Colombian Excel writes. Read as DAY first." },
+      { "format": "DD-MM-YYYY", "example": "24-03-2026", "why": "same convention with a hyphen" },
+      { "format": "DD.MM.YYYY", "example": "24.03.2026", "why": "same convention with a dot" }
+    ],
+    "dayFirstIsMandatory": {
+      "rule": "Any slash, hyphen or dot date is read DAY first. There is no way to detect which convention the writer used from the shape alone.",
+      "danger": {
+        "example": "03/04/2026",
+        "readAs": "3 April",
+        "butMayMean": "4 March, if the file came from a month-first system",
+        "consequence": "the series is silently out of order and the weekly seasonality the model depends on becomes noise. The model still returns a WAPE, so nothing looks wrong.",
+        "mitigation": "Re-export as YYYY-MM-DD and that question disappears. If you cannot, tell us your convention and we will read the file accordingly.",
+        "detection": "If the dates go backwards, the evaluation returns a high-severity finding naming the offending lines. That catches the mistake after the fact; it cannot undo it."
+      }
+    }
+  },
+
+  "delimiters": [
+    { "delimiter": ",", "decimal": ".", "why": "the safe default: what a POS export and a developer both produce" },
+    { "delimiter": ";", "decimal": ",", "why": "Spanish-locale Excel. Detected from the first line, so it does not need to be declared anywhere." },
+    { "delimiter": "\\t", "decimal": ".", "why": "tab-separated, which is what some BI tools emit" }
+  ],
+
+  "lexicalTolerances": [
+    { "case": "header row", "example": "date,units", "why": "optional. A file of nothing but numbers is a valid series." },
+    { "case": "blank lines", "example": "", "why": "ignored" },
+    { "case": "comments", "example": "# exportado del POS", "why": "any line starting with # is ignored, which is where the note to the reader goes" },
+    { "case": "quoted cells", "example": "\"120\"", "why": "quotes are stripped, and a doubled quote inside is an escaped quote" },
+    { "case": "byte-order mark", "example": "﻿units", "why": "tolerated, because a Windows copy/paste adds one and it would otherwise hide the header" },
+    { "case": "thousands with a semicolon", "example": "1.234,50", "why": "the dot groups thousands and the comma is the decimal, in that locale" }
+  ],
+
+  "refusals": [
+    { "case": "negative value", "error": "negative_value", "why": "a negative sale is a return, which needs the returns included, not netted into a demand series" },
+    { "case": "non-numeric cell", "error": "not_a_number", "why": "" },
+    { "case": "too short", "error": "too_short", "why": "below 28 days there is not enough left after a 14-day holdout to fit a weekly season" },
+    { "case": "too long", "error": "too_long", "why": "above 365 days. Not a limit of interest, a guard against a stray multi-year file." },
+    { "case": "three columns", "error": "too_many_columns", "why": "there is no way to tell which column is the demand measure" },
+    { "case": "comma decimal in a comma-delimited file", "error": "not_a_number", "why": "1,234 is either 1234 or 1.234 and guessing wrong is a 1000x error in the data, so it is refused instead" },
+    { "case": "impossible date", "error": "not_a_number", "why": "2026-02-31 is not rolled forward into March; the date is dropped and gap detection is lost for that row" },
+    { "case": "empty file", "error": "empty_file", "why": "" },
+    { "case": "no series at all", "error": "no_series", "why": "the body carried neither an array nor csv text" }
+  ],
+
+  "openColumns": [
+    {
+      "name": "stock_disponible",
+      "status": "not accepted today",
+      "why": "This is the most valuable thing a retailer could send and the parser will refuse it as a third column. A zero on a day the shelf was empty is not zero demand, and the diagnostics can only report that it happened, not act on it. Excluding those days before fitting would make the WAPE honest rather than merely flagged.",
+      "nextStep": "A stock flag turns the diagnostics from a warning into a correction. Say so when you send the request: it is the difference between a demo and a pilot."
+    },
+    {
+      "name": "precio / promocion",
+      "status": "not accepted today",
+      "why": "Price explains a demand spike, so it belongs in the model eventually. It is not needed for the first evaluation and would make the first conversation harder."
+    },
+    {
+      "name": "sku / producto",
+      "status": "one series per file",
+      "why": "The endpoint takes a single series. To compare products, send one file per SKU. Multi-series is what the phase-two dashboard adds."
+    }
+  ],
+
+  "whatTheCustomerGetsBack": [
+    "WAPE of the model against a seasonal-naive baseline, on the same held-out days",
+    "the improvement in error, and the money that is worth at their own contribution margin",
+    "a 14-day projection with a 95% interval",
+    "a data-quality report: stock-out runs named by date, calendar gaps, promotion-sized outliers",
+    "a stored record with a 90-day retention, readable back through the same API"
+  ]
+}

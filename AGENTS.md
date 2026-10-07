@@ -16,6 +16,30 @@ a visitor score their own CSV with the same engine and keeps the record.
 - **Repository:** https://github.com/Alejob60/studious-disco
 - **Region:** `us-east-1` · **Account:** `409514059726`
 
+## Getting real customer data
+
+`docs/CONTRATO-DATOS.md` is the contract to send a customer, and
+`docs/CORREO-SOLICITUD-DATOS.md` is the email to send with it. Both are
+**generated** from `docs/data-contract.examples.json` by
+`scripts/generate-data-contract.mjs` on every build.
+
+That indirection is the point. Every example in the contract is asserted against
+the real parser by `backend/test/data-contract.test.js`, so the document cannot
+describe a format the code does not accept — the suite fails first. A contract
+that overpromises is worse than none: a store manager who exports in a format we
+reject concludes the product does not understand their business.
+
+Edit the JSON, never the markdown.
+
+Two things to raise in every conversation with a customer:
+
+- **Semicolon, not comma.** Spanish-locale Excel is the most common cause of a
+  rejected file. It is already called out on the blank template.
+- **Ask for the stock flag.** A zero on a day the shelf was empty is not zero
+  demand. Today the diagnostics can *report* such days; with a stock column they
+  could be excluded before fitting, which is the difference between a flagged
+  number and an honest one.
+
 ## Verify before you claim anything
 
 ```bash

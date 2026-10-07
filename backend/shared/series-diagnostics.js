@@ -78,6 +78,21 @@ function analyseSeries(series, meta = {}) {
     })
   }
 
+  // Dates going backwards is the signature of a month/day file read day-first: a
+  // US export of 03/04 means 4 March, and reading it as 3 April puts the whole
+  // series out of order, which scrambles the weekly seasonality silently. There is
+  // no way to recover the original, so it is reported rather than repaired.
+  const descending = dates ? findDescendingDates(dates) : null
+  if (descending && descending.length > 0) {
+    findings.push({
+      code: 'descending_dates',
+      severity: 'high',
+      when: descending.slice(0, 5).map((d) => d.date),
+      detail: `${descending.length} date${descending.length === 1 ? '' : 's'} go backwards. Slashes are read day-first, which is Colombian convention — if the file was written month-first (03/04 = 4 March) the series is in the wrong order and the seasonality is meaningless. Re-export as YYYY-MM-DD.`,
+      days: descending.length,
+    })
+  }
+
   // Promotions and anomalies.
   const outliers = stats.stdDev > 0 ? findOutliers(values, stats.mean, stats.stdDev) : []
   if (outliers.length > 0) {
@@ -180,6 +195,25 @@ function findMissingDays(dates) {
   return gaps
 }
 
+/**
+ * Reports the positions where a date goes backwards from the one before it.
+ *
+ * This is the tell for a month/day file read day-first. It cannot be repaired
+ * because the original order is gone by the time it is visible, but catching it
+ * turns a silently wrong forecast into a message naming the line.
+ */
+function findDescendingDates(dates) {
+  const found = []
+  for (let i = 1; i < dates.length; i += 1) {
+    const previous = parseIso(dates[i - 1])
+    const current = parseIso(dates[i])
+    if (previous && current && current < previous) {
+      found.push({ at: dates[i], previous: dates[i - 1] })
+    }
+  }
+  return found
+}
+
 function parseIso(iso) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? ''))
   if (!match) return null
@@ -199,6 +233,7 @@ function describeRanges(starts, dates) {
 module.exports = {
   analyseSeries,
   findMissingDays,
+  findDescendingDates,
   basicStats,
   STOCK_OUT_MIN_RUN,
   OUTLIER_Z,
