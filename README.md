@@ -78,13 +78,13 @@ The part we care about most: **the claims above are machine-checked against the
 deployed system.**
 
 ```bash
-npm run verify:integration   # 52 checks: live site ↔ live API, every sitemap deep link, the real-data lab
+npm run verify:integration   # 57 checks: live site ↔ live API, deep links, the real-data lab and the ledger
 npm run verify:api           # 27 checks: API contract the UI depends on
 npm run test:backend         # 109 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **188 automated checks.**
+Total: **202 automated checks.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
@@ -131,6 +131,32 @@ write is best-effort, and the claim is never stronger than what happened.
 
 That record is the seed of the phase-two dashboard: a customer cannot be shown
 how their own accuracy moved over time until someone stored it.
+
+#### The ledger
+
+Right under the lab, the page reads those records back and shows them:
+
+| | |
+|---|---|
+| **Evaluations** | how many series have been scored |
+| **Beat the baseline** | the share where the model actually had less error |
+| **Average WAPE** | the model's, against the baseline's |
+| **Improvement range** | worst series to best |
+
+The aggregates are computed **in MongoDB across every stored document**, not by
+averaging in the Lambda — pulling them all over the wire to divide them here
+would be the wrong shape. The share that beat the baseline is the number worth
+having: any single WAPE flatters the model that produced it.
+
+The endpoint is public, so it returns measurements only. The uploaded series and
+its projection never come back out, and the integration suite asserts that rather
+than trusting it.
+
+It is captioned a **ledger, not a trend**, and the caption is chosen from the data
+rather than asserted. The sample CSV is anchored to its build date, so a rebuild
+shifts the weekdays its weekly multipliers land on and the same file measures
+differently — the stored records already contain both 10.40 % and 8.88 % for it.
+A caption that is sometimes false would be worse than none.
 
 ---
 
@@ -240,7 +266,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | COP 2,395,611/month, derived from that backtest |
-| Pipeline is real | 188 automated checks against the deployed system |
+| Pipeline is real | 202 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -311,7 +337,7 @@ npm run verify:integration \
   https://main.d28ukybtuih8pa.amplifyapp.com \
   https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
-52 checks against production, from your own machine.
+57 checks against production, from your own machine.
 
 ### Step 6 — Score your own data (90 s)
 1. Scroll to **"Try it on your data"** and press **Load the sample series**
@@ -320,7 +346,10 @@ npm run verify:integration \
    same 14 days it never saw. The sample lands at 10.40 % against 14.32 %
 4. Now change a number in the textarea and press it again. The number moves
 5. The line underneath says the evaluation was **stored**, with an id and the
-   retention window. That record is what a phase-two dashboard would chart
+   retention window
+6. Keep scrolling to **"Everything we have measured"** — that is the same
+   database read back, aggregated by MongoDB. Refresh it: the row you just created
+   appears without a reload
 
 ### Step 7 — The legal and agent surface (30 s)
 Open `/llms.txt`, `/en/privacy`, and the **cookie consent banner**. Four
@@ -346,13 +375,12 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
 - Every sitemap route served as a real page, not a rewrite the CDN ignored
-- 188 automated checks against production
+- 202 automated checks against production
 
-### 🔜 Phase 2 — Commercial build *(planned, not built)*
-- **The control dashboard.** Every evaluation is already stored, so the missing
-  piece is the view: accuracy trending per customer over time, champion against
-  challenger side by side, and the agent's actions logged instead of firing and
-  forgetting
+### 🔜 Phase 2 — Commercial build *(first slice shipped above)*
+- **The control dashboard.** The aggregate ledger above is the first piece; what
+  remains is per-customer accuracy over time, champion against challenger side by
+  side, and the agent's actions logged instead of firing and forgetting
 - Multi-tenancy on top of the existing collection — customers, SKUs and series
 - Authentication on `/chat` and `/lead` (Cognito or API key)
 - Streaming agent replies (`ConverseStream`) to cut time-to-first-token
@@ -524,7 +552,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 188 automated checks run against the
+3. **The claims are machine-checked.** 202 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.
