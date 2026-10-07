@@ -67,6 +67,19 @@ test('the health route is recognised from a raw path too, for a direct invoke', 
   assert.equal(JSON.parse(response.body).error, 'not_configured')
 })
 
+test('the history route answers even with no store configured', async () => {
+  // Without this the page would have to treat a 503 as "no data yet", which is
+  // indistinguishable from the database being down.
+  const response = await handler(event({ routeKey: 'GET /evaluate/history', rawPath: '/evaluate/history' }))
+  assert.equal(response.statusCode, 200)
+
+  const payload = JSON.parse(response.body)
+  assert.equal(payload.ok, true)
+  assert.equal(payload.enabled, false)
+  assert.deepEqual(payload.recent, [])
+  assert.equal(payload.beatenBaselinePct, null)
+})
+
 test('a series the engine cannot fit is a 422 about the data, not a server fault', async () => {
   // 28 points is the minimum, but a flat series still has to produce a report.
   const flat = Array.from({ length: 30 }, () => 50)

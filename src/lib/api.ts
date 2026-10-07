@@ -178,3 +178,54 @@ export async function evaluateSeries(
 
   return payload as EvaluationResponse
 }
+
+export type HistoryEntry = {
+  id: string
+  at: string | null
+  source: string | null
+  locale: string | null
+  points: number | null
+  wape: number | null
+  baselineWape: number | null
+  improvementPct: number | null
+  seriesMean: number | null
+}
+
+export type EvaluationHistory = {
+  ok: true
+  enabled: boolean
+  database?: string
+  retentionDays?: number | null
+  total: number
+  beaten?: number
+  beatenBaselinePct: number | null
+  avgWape?: number | null
+  avgBaselineWape?: number | null
+  avgImprovementPct?: number | null
+  bestImprovementPct?: number | null
+  worstImprovementPct?: number | null
+  avgPoints?: number | null
+  recent: HistoryEntry[]
+  note?: string
+}
+
+/**
+ * Reads back every evaluation recorded so far.
+ *
+ * This is the visible half of the storage claim: without it, "we keep a record"
+ * is a sentence in a README rather than something a reviewer can check. The
+ * response carries aggregates and measurements only, never the uploaded series,
+ * because the endpoint is public and a series is the customer's own data.
+ */
+export async function fetchEvaluationHistory(signal?: AbortSignal): Promise<EvaluationHistory> {
+  if (!API_URL) throw new Error('VITE_API_URL is not set')
+
+  const response = await fetch(`${API_URL}/evaluate/history?limit=6`, { signal })
+  const payload = await response.json().catch(() => null)
+
+  if (!response.ok || !payload?.ok) {
+    throw new EvaluationError(payload?.error ?? 'history_failed', `history failed: ${response.status}`)
+  }
+
+  return payload as EvaluationHistory
+}

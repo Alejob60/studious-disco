@@ -478,6 +478,15 @@ Resources:
       RouteKey: GET /evaluate/health
       Target: !Sub 'integrations/${EvaluateIntegration}'
 
+  # The first slice of the phase-two control dashboard: what has been scored so
+  # far, and how often the model actually beat the naive baseline.
+  EvaluateHistoryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: GET /evaluate/history
+      Target: !Sub 'integrations/${EvaluateIntegration}'
+
   LeadInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -541,5 +550,8 @@ Outputs:
   EvaluateHealthEndpoint:
     Description: GET to confirm the evaluation store is reachable.
     Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/evaluate/health'
+  EvaluateHistoryEndpoint:
+    Description: GET the aggregate accuracy of every stored evaluation. Never returns the uploaded series.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/evaluate/history'
 
 

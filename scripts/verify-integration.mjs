@@ -200,6 +200,18 @@ const short = await shortResponse.json()
 check('a too-short series is refused with 400', shortResponse.status === 400, String(shortResponse.status))
 check('the refusal names the problem', short.error === 'too_short', String(short.error))
 
+// The evaluation above must be readable back, or "we keep a record" is a sentence
+// rather than a fact.
+const ledger = await (await fetch(`${api}/evaluate/history?limit=5`, { headers: { Origin: origin } })).json()
+check('the stored evaluation is readable back', ledger.enabled === true && ledger.total >= 1, `total ${ledger.total}`)
+check('the ledger counts it as beating the baseline', typeof ledger.beatenBaselinePct === 'number', String(ledger.beatenBaselinePct))
+check('the ledger reports averages', typeof ledger.avgWape === 'number' && typeof ledger.avgBaselineWape === 'number')
+check('recent entries are returned', (ledger.recent?.length ?? 0) > 0, String(ledger.recent?.length))
+// The endpoint is public, so this is the control that matters: an uploaded series
+// must never come back out through it.
+const leaksSeries = JSON.stringify(ledger).includes('"series"')
+check('the ledger does not return the uploaded series', !leaksSeries)
+
 console.log(
   failures.length === 0
     ? '\nAll integration checks passed.'

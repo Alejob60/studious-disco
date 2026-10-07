@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Download, Loader2, Upload } from 'lucide-react'
+import { EvaluationHistory } from './EvaluationHistory'
 import { useI18n } from '../i18n/I18nProvider'
 import { trackEvent } from '../lib/analytics'
 import { EvaluationError, evaluateSeries, isApiConfigured, type EvaluationResponse } from '../lib/api'
@@ -38,6 +39,7 @@ export function DataLab() {
   const [status, setStatus] = useState<Status>('idle')
   const [result, setResult] = useState<EvaluationResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
 
   async function loadSample() {
@@ -71,6 +73,9 @@ export function DataLab() {
       const evaluation = await evaluateSeries(csv, source, locale)
       setResult(evaluation)
       setStatus('done')
+      // The ledger below is read from the database, so it only learns about this
+      // row once the write has landed.
+      setRefreshToken((n) => n + 1)
       trackEvent({
         name: 'evaluation_completed',
         locale,
@@ -210,6 +215,8 @@ export function DataLab() {
           {result && <Result result={result} />}
         </div>
       </div>
+
+      <EvaluationHistory refreshToken={refreshToken} />
     </section>
   )
 }

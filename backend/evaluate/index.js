@@ -72,7 +72,10 @@ async function handler(event) {
   // where a raw path comparison would silently start treating it as an
   // evaluation request.
   const routeKey = event.requestContext?.http?.routeKey ?? ''
-  if (routeKey === 'GET /evaluate/health' || isHealthPath(event)) return health()
+  if (routeKey === 'GET /evaluate/health' || isPath(event, '/evaluate/health')) return health()
+  if (routeKey === 'GET /evaluate/history' || isPath(event, '/evaluate/history')) {
+    return history(queryOf(event))
+  }
 
   let payload
   try {
@@ -155,14 +158,78 @@ async function health() {
   })
 }
 
+/**
+ * What has been scored so far, and how it went.
+ *
+ * This is the first slice of the phase-two control dashboard, and it exists to
+ * make one claim visible rather than asserted: the evaluations are really
+ * recorded, and reading them back is one unauthenticated GET. Without a view, the
+ * storage is only a claim in a paragraph.
+ *
+ * The stored series is never returned. These documents hold whatever sales
+ * figures a visitor uploaded, and this endpoint is public, so it reports the
+ * measurements and leaves the data alone.
+ */
+async function history(params) {
+  const store = await loadStore()
+
+  if (!store) {
+    return respond(200, {
+      ok: true,
+      enabled: false,
+      total: 0,
+      beatenBaselinePct: null,
+      recent: [],
+      note: 'no evaluation store is configured on this deployment',
+    })
+  }
+
+  const [recent, summary] = await Promise.all([
+    store.listRecent(params?.limit ?? 10),
+    store.summary(),
+  ])
+
+  return respond(200, {
+    ok: true,
+    enabled: true,
+    database: store.dbName,
+    collection: store.collection,
+    retentionDays: store.retentionDays,
+    ...summary,
+    recent: recent.rows.map((row) => ({
+      id: String(row._id),
+      at: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt ?? null,
+      source: row.source ?? null,
+      locale: row.locale ?? null,
+      points: row.points ?? null,
+      horizon: row.horizon ?? null,
+      wape: row.metrics?.wape ?? null,
+      baselineWape: row.metrics?.baselineWape ?? null,
+      improvementPct: row.metrics?.improvementPct ?? null,
+      modelMaeUnits: row.metrics?.modelMaeUnits ?? null,
+      baselineMaeUnits: row.metrics?.baselineMaeUnits ?? null,
+      peakUnits: row.kpis?.peakUnits ?? null,
+      // Enough to chart the shape without shipping the series itself.
+      seriesMean: row.summary?.mean ?? null,
+      seriesMax: row.summary?.max ?? null,
+    })),
+    // Surfaced so a viewer can tell an empty database from a broken query.
+    error: summary.ok === false ? summary.error : null,
+  })
+}
+
 function respond(statusCode, payload) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(payload) }
 }
 
 /** Fallback for a direct invoke, where no route key is present. */
-function isHealthPath(event) {
+function isPath(event, suffix) {
   const path = event.rawPath ?? event.path ?? ''
-  return path === '/evaluate/health' || path === '/health'
+  return path === suffix || path.endsWith(suffix)
+}
+
+function queryOf(event) {
+  return event.queryStringParameters ?? {}
 }
 
 function clamp(value, min, max) {

@@ -156,7 +156,93 @@ function createPersistence({ uri, dbName = DEFAULT_DB_NAME, collection = DEFAULT
         return { ok: false, error: String(error?.name ?? 'store_error') }
       }
     },
+
+    /**
+     * Recent evaluations, newest first, without the stored series.
+     *
+     * The `series` field is deliberately not projected. This is a public endpoint
+     * with no authentication, and a stored series is a customer's own sales
+     * figures: the aggregates below are what a visitor needs to judge whether the
+     * system measures anything, and the raw numbers are none of their business.
+     */
+    async listRecent(limit = 10) {
+      try {
+        const { collection: target } = await getCollection()
+        const rows = await target
+          .find({}, { projection: { series: 0, forecast: 0 } })
+          .sort({ createdAt: -1 })
+          .limit(clampLimit(limit))
+          .toArray()
+
+        return { ok: true, rows }
+      } catch (error) {
+        return { ok: false, error: String(error?.name ?? 'store_error'), rows: [] }
+      }
+    },
+
+    /**
+     * Aggregate accuracy across everything scored so far.
+     *
+     * The number worth having is `beatenBaselinePct`: of the series we have
+     * measured, how many did the model actually beat the naive rule on. A single
+     * percentage is a far more honest summary of a forecaster than any one WAPE,
+     * because a model can look excellent on the series it was tuned against.
+     */
+    async summary() {
+      try {
+        const { collection: target } = await getCollection()
+
+        const [row] = await target
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                beaten: {
+                  $sum: { $cond: [{ $lt: ['$metrics.wape', '$metrics.baselineWape'] }, 1, 0] },
+                },
+                avgWape: { $avg: '$metrics.wape' },
+                avgBaselineWape: { $avg: '$metrics.baselineWape' },
+                avgImprovementPct: { $avg: '$metrics.improvementPct' },
+                bestImprovementPct: { $max: '$metrics.improvementPct' },
+                worstImprovementPct: { $min: '$metrics.improvementPct' },
+                avgPoints: { $avg: '$points' },
+                first: { $min: '$createdAt' },
+                last: { $max: '$createdAt' },
+              },
+            },
+          ])
+          .toArray()
+
+        if (!row) {
+          return { ok: true, total: 0, beaten: 0, beatenBaselinePct: null }
+        }
+
+        return {
+          ok: true,
+          total: row.total,
+          beaten: row.beaten,
+          beatenBaselinePct: round2(row.total === 0 ? 0 : (row.beaten / row.total) * 100),
+          avgWape: round2(row.avgWape),
+          avgBaselineWape: round2(row.avgBaselineWape),
+          avgImprovementPct: round2(row.avgImprovementPct),
+          bestImprovementPct: round2(row.bestImprovementPct),
+          worstImprovementPct: round2(row.worstImprovementPct),
+          avgPoints: row.avgPoints === null ? null : Math.round(row.avgPoints),
+          firstAt: row.first ?? null,
+          lastAt: row.last ?? null,
+        }
+      } catch (error) {
+        return { ok: false, error: String(error?.name ?? 'store_error') }
+      }
+    },
   }
+}
+
+function clampLimit(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 10
+  return Math.min(Math.max(Math.trunc(parsed), 1), 50)
 }
 
 function round2(value) {
