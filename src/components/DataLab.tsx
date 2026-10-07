@@ -212,7 +212,7 @@ export function DataLab() {
           </h3>
 
           {status === 'error' && (
-            <div className="mt-4 flex gap-3 rounded-xl border border-aws/30 bg-aws-bg p-4 text-sm text-aws">
+            <div className="mt-4 flex gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={2} />
               <p className="leading-relaxed">{error}</p>
             </div>
@@ -339,7 +339,7 @@ function DataQualityPanel({ quality }: { quality: DataQuality }) {
   return (
     <div className="space-y-2">
       {!quality.reliable && (
-        <p className="flex items-start gap-2 rounded-xl border border-aws/30 bg-aws-bg p-3 text-xs leading-relaxed text-aws">
+        <p className="flex items-start gap-2 rounded-xl border border-warn/40 bg-warn-bg p-3 text-xs leading-relaxed text-warn">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} />
           {t('lab.qualityUnreliable')}
         </p>
@@ -350,7 +350,7 @@ function DataQualityPanel({ quality }: { quality: DataQuality }) {
           key={finding.code}
           className={`rounded-xl border p-3 text-xs leading-relaxed ${
             finding.severity === 'high'
-              ? 'border-aws/30 bg-aws-bg text-aws'
+              ? 'border-warn/40 bg-warn-bg text-warn'
               : 'border-line bg-ink text-body/80'
           }`}
         >

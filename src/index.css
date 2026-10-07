@@ -24,6 +24,13 @@
   --color-aws: #2ecc71;
   --color-aws-bg: #052e1b;
 
+  /* Warning: data that is present but cannot be trusted as it stands.
+     Deliberately neither the brand gold nor red. Gold reads as emphasis, and red
+     reads as a fault in the software; a series full of stock-outs is neither —
+     it is a fact about the input, and it has to look different from both. */
+  --color-warn: #f0a92e;
+  --color-warn-bg: #2a1c05;
+
   /* Borders */
   --color-line: rgb(255 255 255 / 0.08);
   --color-line-strong: rgb(255 255 255 / 0.16);
