@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Database, RefreshCw } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider'
-import { fetchEvaluationHistory, isApiConfigured, type EvaluationHistory } from '../lib/api'
+import { fetchEvaluationHistory, isApiConfigured, type EvaluationHistory, type HistoryEntry } from '../lib/api'
 import { formatNumber } from '../lib/format'
 
 /**
@@ -165,7 +165,9 @@ export function EvaluationHistory({ refreshToken = 0 }: { refreshToken?: number 
               </table>
             </div>
 
-            <p className="mt-4 text-xs leading-relaxed text-body/60">{t('history.disclaimer')}</p>
+            <p className="mt-4 text-xs leading-relaxed text-body/60">
+              {describeLedger(t, data)}
+            </p>
           </>
         )}
 
@@ -209,4 +211,36 @@ function formatWhen(iso: string | null, locale: 'es' | 'en'): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
+}
+
+/**
+ * Whether the ledger is one series repeated or genuinely several.
+ *
+ * The sample CSV is anchored to its build date, so a rebuild shifts the weekdays
+ * and the same file measures differently: the stored records already contain both
+ * 10.40 % and 8.88 % for it. A caption claiming "the same series every time" is
+ * therefore only sometimes true, so it is decided from the data instead of
+ * asserted in the copy.
+ */
+function isSingleSeries(recent: HistoryEntry[]): boolean {
+  if (recent.length < 2) return true
+  const first = `${recent[0].points}:${recent[0].wape}`
+  return recent.every((entry) => `${entry.points}:${entry.wape}` === first)
+}
+
+/**
+ * Two honest sentences: what the aggregate is, and what it is not.
+ *
+ * `t` is passed rather than read from context so the wording can differ per locale
+ * without this helper needing to be a component.
+ */
+function describeLedger(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  data: EvaluationHistory,
+): string {
+  const repeat = t('history.noteSeries')
+  const diverse = t('history.noteDiverse')
+  const privacy = t('history.notePrivacy')
+
+  return `${isSingleSeries(data.recent) ? repeat : diverse} ${privacy}`
 }

@@ -114,8 +114,11 @@ title: 'Indicadores clave',
     colWape: 'Modelo',
     colBaseline: 'Baseline',
     colImprovement: 'Mejora',
-    disclaimer:
-      'Esto es un registro, no una tendencia. Las primeras entradas son todas la misma serie de ejemplo, así que un gráfico de precisión en el tiempo no diría nada todavía. La serie que subiste nunca se devuelve por esta vía.',
+    noteSeries:
+      'Las últimas entradas repiten la misma serie, así que esto es un registro y no una tendencia: un gráfico de precisión en el tiempo no diría nada todavía.',
+    noteDiverse:
+      'Las últimas entradas miden series distintas, pero mientras no venga de un mismo cliente de forma repetida tampoco son una tendencia.',
+    notePrivacy: 'La serie que subiste nunca se devuelve por esta vía.',
   },
   services: {
     badge: 'Cómo funciona',
@@ -389,8 +392,11 @@ title: 'Key metrics',
     colWape: 'Model',
     colBaseline: 'Baseline',
     colImprovement: 'Improvement',
-    disclaimer:
-      'This is a ledger, not a trend. Every entry so far is the same sample series, so an accuracy-over-time chart would say nothing yet. The series you upload is never returned through this path.',
+    noteSeries:
+      'The most recent entries repeat one series, so this is a ledger and not a trend: an accuracy-over-time chart would say nothing yet.',
+    noteDiverse:
+      'The most recent entries measure different series, but until they come from the same customer repeatedly they are still not a trend.',
+    notePrivacy: 'The series you upload is never returned through this path.',
   },
   services: {
     badge: 'How it works',

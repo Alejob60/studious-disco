@@ -30,8 +30,12 @@ const WEEKDAY = [0.74, 0.79, 0.86, 0.9, 1.02, 1.31, 1.58]
 
 function buildSeries() {
   const rows = []
-  // Deterministic, so the downloadable file is the same every build and a reader
-  // comparing two downloads is not looking at two different datasets.
+  // The noise sequence is seeded, so the *values* are reproducible. The series is
+  // still anchored to the build date, because a sample export whose last row is
+  // four months old looks stale. That means the weekly multipliers land on
+  // different weekdays after a rebuild, and the measured WAPE moves with them:
+  // between two builds we have seen 10.40 % and 8.88 % on this same file. The
+  // reader is told the ledger is not a trend for exactly this reason.
   let seed = 20260401
   const random = () => {
     seed = (seed * 1664525 + 1013904223) % 4294967296
