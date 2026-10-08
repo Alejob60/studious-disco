@@ -28,7 +28,10 @@ export function Header() {
         onClick={scrollToAnchor}
         className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8"
       >
-        <a href={`${base}#top`} className="group flex items-center gap-2.5">
+        <a
+          href={`${base}#top`}
+          className="-my-2 group flex min-h-11 items-center gap-2.5 py-2 sm:min-h-0 sm:py-0"
+        >
           <span className="grid size-9 place-items-center rounded-lg border border-gold/30 bg-gold/10 transition-colors group-hover:bg-gold/20">
             <BrainCircuit className="size-5 text-gold" strokeWidth={1.75} />
           </span>
@@ -41,31 +44,31 @@ export function Header() {
           <div className="hidden items-center gap-5 md:flex">
             <a
               href={`${base}#agente`}
-              className="text-sm text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
             >
               {t('nav.agent')}
             </a>
             <a
               href={`${base}#pronostico`}
-              className="text-sm text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
             >
               {t('nav.forecast')}
             </a>
             <a
               href={`${base}#servicios`}
-              className="text-sm text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
             >
               {t('nav.services')}
             </a>
             <a
               href={`${base}#lab`}
-              className="text-sm text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
             >
               {t('nav.lab')}
             </a>
             <a
               href={`${base}#contacto`}
-              className="text-sm text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
             >
               {t('nav.contact')}
             </a>

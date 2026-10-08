@@ -115,7 +115,7 @@ export function ForecastChart({
                   type="button"
                   onClick={() => toggle(series.key)}
                   aria-pressed={!isHidden}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors sm:min-h-0 sm:py-1.5 ${
                     isHidden
                       ? 'border-line text-white/30 hover:text-white/60'
                       : isGold

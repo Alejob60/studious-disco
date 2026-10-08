@@ -532,6 +532,27 @@ The margin remains a **stated assumption** rather than a market fact, it travels
 with the figure in the payload as `unitMarginUsd`, and the interface shows it so
 the reader can substitute their own.
 
+#### Coming in phase 2: the margin in the customer's own currency
+
+A neighbourhood shop does not think "my margin is USD 4.60" — it thinks "my
+margin is 18,000 pesos". And what differs between a corner store and a chain is
+**not the exchange rate; it is the margin.** So the toggle is not a currency
+converter bolted on the navbar, it is a configurable input.
+
+```
+today     margin = USD 4.60 (stated)        →  USD 596
+phase 2   margin = COP 18.500, currency COP  →  COP 2,397,600
+```
+
+The second line is computed natively: the customer never sees a figure that was
+multiplied by a rate. An exchange rate is only shown when they ask for the USD
+equivalent, and it is a dated value rather than a constant — the 4,000 COP/USD
+this project used to carry was a stale assumption, and a dashboard that presents
+itself as an audit trail cannot have a number that drifts with the calendar.
+
+The seam is already in place: `unitMarginUsd` travels in the payload, so this is a
+change of input rather than a refactor.
+
 ### 💡 Phase 3 — Month 2–3 *(aspiration)*
 - WhatsApp Business API so `activate_campaign` reaches a real audience
 - Multi-tenant architecture and per-customer model selection

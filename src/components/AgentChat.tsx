@@ -168,7 +168,10 @@ export function AgentChat({ live }: { live: boolean }) {
             </span>
           </div>
 
-          <div ref={listRef} className="max-h-[420px] space-y-4 overflow-y-auto px-4 py-6 sm:px-6">
+          {/* 420px was most of a 568px phone screen, which left the input below the fold.
+          A viewport-relative cap on small screens keeps the conversation and the
+          send button usable together. */}
+          <div ref={listRef} className="max-h-[70vh] space-y-4 overflow-y-auto px-4 py-6 sm:max-h-[420px] sm:px-6">
             <AnimatePresence initial={false}>
               {messages.map((message) => (
                 <motion.div
@@ -259,7 +262,7 @@ export function AgentChat({ live }: { live: boolean }) {
                 disabled={!draft.trim() || thinking}
                 whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                 aria-label="Enviar instrucción"
-                className="grid size-9 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-gold to-gold-light text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
+                className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-gold to-gold-light text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30 sm:size-9"
               >
                 <Send className="size-4" strokeWidth={2.5} />
               </motion.button>

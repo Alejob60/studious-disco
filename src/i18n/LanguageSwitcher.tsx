@@ -33,12 +33,15 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
       {locales.map((entry) => {
         const isActive = entry.locale === locale
         return (
-          <button
+<button
             key={entry.locale}
             type="button"
             onClick={() => switchTo(entry.locale)}
             aria-current={isActive ? 'true' : undefined}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            // 44px tall on touch. The pill was 25px, which is below the minimum a
+            // thumb can reliably hit, and the language switcher is one of the
+            // first things a judge on a phone will try.
+            className={`min-h-11 min-w-11 rounded-full px-3 text-[11px] font-semibold transition-colors sm:min-h-0 sm:min-w-0 sm:py-1 ${
               isActive
                 ? 'bg-gradient-to-r from-gold to-gold-light text-black'
                 : 'text-body hover:text-white'

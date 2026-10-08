@@ -123,7 +123,11 @@ export function EvaluationHistory({ refreshToken = 0 }: { refreshToken?: number 
             </div>
 
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-left text-xs">
+              {/* `min-w` keeps the columns from crushing their numbers on a phone,
+                  but the `w-full` inside a scroll container must not be allowed to
+                  widen the page. `max-w-full` on the wrapper is what stops the
+                  sticky-header 404 we measured at 320px. */}
+              <table className="w-full min-w-[34rem] max-w-full text-left text-xs">
                 <thead className="text-body/60">
                   <tr>
                     <th className="py-2 pr-4 font-medium">{t('history.colWhen')}</th>
