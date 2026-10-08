@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { BrainCircuit, Zap } from 'lucide-react'
 import { useI18n } from '../i18n/I18nProvider'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
+import { scrollToAnchor } from '../lib/anchors'
 
 /** Sticky top bar: brand on the left, AWS badge and language switch on the right. */
 export function Header() {
@@ -20,6 +21,11 @@ export function Header() {
     >
       <nav
         aria-label="Principal"
+        // Anchored links are handled here rather than by the browser. See
+        // `scrollToAnchor` in App.tsx: the document is still short while the lazy
+        // chart loads, and a plain fragment jump into a section that is not yet
+        // there does nothing at all.
+        onClick={scrollToAnchor}
         className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8"
       >
         <a href={`${base}#top`} className="group flex items-center gap-2.5">

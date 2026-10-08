@@ -33,27 +33,20 @@ const ForecastChart = lazy(() =>
 /**
  * Keeps scrolling in step with the URL.
  *
- * Two separate bugs made the header links look dead, and the second only became
- * visible after fixing the first.
+ * This is not where the header's anchored links are handled — that lives in
+ * `src/lib/anchors.ts`, because the header needs it and App renders the header.
  *
- * 1. `ScrollToTop` ran `window.scrollTo({top: 0})` on `[pathname]`. A hash-only
- *    navigation changes the location but not the path, and the component remounts
- *    anyway, so the effect fired ~250 ms after the click and cancelled the jump.
- *    Traced in the browser: one programmatic scrollTo, 246 ms after the click.
+ * What remains here is the part a router effect is genuinely good at: resetting
+ * to the top when the path changes, so switching language or following a link to
+ * another route does not leave the reader halfway down the old page.
  *
- * 2. The chart is a 360 kB lazy chunk. Clicking a nav link a second or two after
- *    load means the document is still short, so the browser cannot scroll to a
- *    section that does not exist yet — and it does not retry once the content
- *    arrives. The hash is set, the target is later found at the right offset, and
- *    the page never moves. Measured: `#contacto` at 4447 with a document only
- *    5025 tall and a 900 px viewport, i.e. beyond the end of the page.
- *
- * So the hash is honoured explicitly, and the jump is retried until the target is
- * actually reachable. Without the retry, a fast click on a slow connection lands
- * nowhere and the link reads as broken.
+ * The first-render guard matters and is not removable. Without it a deep link
+ * such as `/en#terms` would load and then be yanked to the top, which is how it
+ * behaved before: the anchor was applied by the browser, then this effect
+ * cancelled it.
  */
 function ScrollManager() {
-  const { pathname, hash } = useLocation()
+  const { pathname } = useLocation()
   const firstRender = useRef(true)
 
   useEffect(() => {
@@ -62,52 +55,8 @@ function ScrollManager() {
       return
     }
 
-    if (!hash) {
-      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
-      return
-    }
-
-    const id = hash.slice(1)
-
-    // Bounded by time rather than by "the height stopped changing".
-    //
-    // The first version stopped as soon as two consecutive frames had the same
-    // document height, on the assumption that the page had settled. It had not:
-    // the lazy chart arrives hundreds of milliseconds later, and the height sat
-    // unchanged across the frames that mattered. The jump was abandoned before
-    // the target existed.
-    const deadline = performance.now() + 4000
-    let frame = 0
-
-    const jump = () => {
-      const target = document.getElementById(id)
-      if (!target) return false
-
-      const offset = target.getBoundingClientRect().top + window.scrollY
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
-
-      // Only scroll once the target is genuinely reachable. Scrolling to a
-      // position the document cannot reach is what silently did nothing before.
-      if (offset > maxScroll + 1) return false
-
-      // 'start' plus the scroll-margin in index.css clears the sticky header, so
-      // the section heading is not hidden underneath it.
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return true
-    }
-
-    const tick = () => {
-      if (jump()) return
-
-      if (performance.now() > deadline) return
-
-      frame = requestAnimationFrame(tick)
-    }
-
-    frame = requestAnimationFrame(tick)
-
-    return () => cancelAnimationFrame(frame)
-  }, [pathname, hash])
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  }, [pathname])
 
   return null
 }
