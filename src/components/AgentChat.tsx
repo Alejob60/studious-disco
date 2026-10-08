@@ -245,7 +245,7 @@ export function AgentChat({ live }: { live: boolean }) {
               </p>
             )}
 
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-3 py-2 focus-within:border-gold/40">
+            <div className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-ink px-3 py-2 focus-within:border-gold/40">
               <input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}

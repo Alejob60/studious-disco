@@ -83,7 +83,7 @@ export function EvaluationHistory({ refreshToken = 0 }: { refreshToken?: number 
               setLoading(true)
               void load()
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-body transition-colors hover:border-gold/40 hover:text-gold"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line px-3 text-xs text-body transition-colors hover:border-gold/40 hover:text-gold"
           >
             <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} strokeWidth={2} />
             {t('history.refresh')}

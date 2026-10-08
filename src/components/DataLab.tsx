@@ -122,7 +122,7 @@ export function DataLab() {
             <button
               type="button"
               onClick={() => void loadSample('clean')}
-              className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
             >
               <Download className="size-4" strokeWidth={2} />
               {t('lab.loadSample')}
@@ -130,7 +130,7 @@ export function DataLab() {
             <button
               type="button"
               onClick={() => void loadSample('rough')}
-              className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
             >
               <AlertTriangle className="size-4" strokeWidth={2} />
               {t('lab.loadRough')}
@@ -138,7 +138,7 @@ export function DataLab() {
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
-              className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm text-body transition-colors hover:border-gold/40 hover:text-gold"
             >
               <Upload className="size-4" strokeWidth={2} />
               {t('lab.upload')}
