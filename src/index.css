@@ -55,6 +55,14 @@ html {
   scroll-behavior: smooth;
 }
 
+/* The header is sticky at 4rem, so an anchor jump would otherwise land with the
+   section's heading hidden underneath it. `scroll-margin-top` is the CSS-native
+   fix and applies to every section without touching each component. */
+:target,
+section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
 body {
   background-color: var(--color-ink);
   color: #fff;

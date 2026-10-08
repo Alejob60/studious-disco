@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AgentChat } from './components/AgentChat'
 import { ContactForm } from './components/ContactForm'
@@ -30,11 +30,44 @@ const ForecastChart = lazy(() =>
   })),
 )
 
-function ScrollToTop() {
-  const { pathname } = useLocation()
+/**
+ * Keeps scrolling in step with the URL.
+ *
+ * This used to be a `ScrollToTop` on `[pathname]`, which quietly broke every
+ * anchor in the header. A hash-only navigation changes the location but not the
+ * path, and the component remounts anyway — so the effect fired, called
+ * `scrollTo({top: 0})` about 250 ms after the click, and cancelled the jump to
+ * the section. The header links looked dead: the hash changed, the target
+ * existed at the right offset, and the page never moved.
+ *
+ * So the hash is now honoured explicitly: jump to the target when there is one,
+ * and only reset to the top when there is not. The first render is skipped
+ * because the browser has already positioned the page, and doing it again on load
+ * is what made a deep link appear to land at the top.
+ */
+function ScrollManager() {
+  const { pathname, hash } = useLocation()
+  const firstRender = useRef(true)
+
   useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+
+    if (hash) {
+      const target = document.getElementById(hash.slice(1))
+      if (target) {
+        // 'start' plus the scroll-margin in index.css clears the sticky header,
+        // so the section heading is not hidden underneath it.
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+    }
+
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
-  }, [pathname])
+  }, [pathname, hash])
+
   return null
 }
 
@@ -109,7 +142,7 @@ function LocaleRoute({
   return (
     <I18nProvider locale={locale}>
       <DocumentLang />
-      <ScrollToTop />
+      <ScrollManager />
       <SeoHead origin={SITE_ORIGIN} />
       <Header />
       <main id="main">{children}</main>
