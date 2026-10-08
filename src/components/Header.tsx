@@ -69,11 +69,10 @@ export function Header() {
 
           <motion.span
             whileHover={reduceMotion ? undefined : { scale: 1.04 }}
-            className="flex items-center gap-1.5 rounded-full border border-aws/30 bg-aws-bg px-3 py-1.5 text-[11px] font-medium text-aws"
+            className="hidden sm:flex items-center gap-1.5 rounded-full border border-aws/30 bg-aws-bg px-3 py-1.5 text-[11px] font-medium text-aws"
           >
             <Zap className="size-3.5" strokeWidth={2.5} />
-            <span className="hidden sm:inline">Powered by AWS</span>
-            <span className="sm:hidden">AWS</span>
+            <span>Powered by AWS</span>
           </motion.span>
 
           <button
