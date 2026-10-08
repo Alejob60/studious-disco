@@ -89,14 +89,14 @@ export function CookieConsent() {
               <button
                 type="button"
                 onClick={() => decide('essential')}
-                className="rounded-xl border border-line-strong px-4 py-2.5 text-xs font-medium text-white transition-colors hover:border-gold/40 hover:bg-gold/5"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-line-strong px-4 text-xs font-medium text-white transition-colors hover:border-gold/40 hover:bg-gold/5"
               >
                 {t('cookies.rejectAll')}
               </button>
               <button
                 type="button"
                 onClick={() => decide('all')}
-                className="rounded-xl bg-gradient-to-r from-gold to-gold-light px-4 py-2.5 text-xs font-semibold text-black transition-shadow hover:shadow-lg hover:shadow-gold/25"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-gold to-gold-light px-4 text-xs font-semibold text-black transition-shadow hover:shadow-lg hover:shadow-gold/25"
               >
                 {t('cookies.acceptAll')}
               </button>

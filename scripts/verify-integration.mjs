@@ -121,7 +121,7 @@ check('history has enough points for Holt-Winters', (forecast.history?.length ??
 check('forecast window present', (forecast.forecast?.length ?? 0) > 0)
 check(
   'every KPI the UI reads is finite',
-  ['weekAheadUnits', 'weekAheadDeltaPct', 'previousWeekUnits', 'peakUnits', 'modelWape', 'unitsSavedPerDay', 'inventorySavingsCop'].every(
+  ['weekAheadUnits', 'weekAheadDeltaPct', 'previousWeekUnits', 'peakUnits', 'modelWape', 'unitsSavedPerDay', 'inventorySavingsUsd'].every(
     (k) => Number.isFinite(forecast.kpis?.[k]),
   ),
 )

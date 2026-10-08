@@ -44,12 +44,12 @@ Two things to raise in every conversation with a customer:
 
 ```bash
 npm ci
-npm run verify            # typecheck + 118 unit tests
+npm run verify            # typecheck + 147 unit tests
 npm run verify:api        https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 npm run verify:integration https://main.d28ukybtuih8pa.amplifyapp.com https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
 ```
 
-`verify:integration` runs against production, not a local build. **202 checks
+`verify:integration` runs against production, not a local build. **236 checks
 total.** It is the thing that catches drift between what the repository claims
 and what is actually deployed, so treat a red run as a real finding rather than
 noise.
@@ -110,6 +110,20 @@ deliberately public during the hackathon; the wildcard origin is not.
 reproducible, but the weekday alignment shifts, so the same file has measured
 10.40 % and 8.88 % WAPE across two builds. Do not describe it as a fixed
 benchmark, and do not read the ledger's spread as a trend.
+
+**Both verify scripts take arguments; `npm run verify:api` will not run without
+them.** They hit the deployed system, not a local build, and the URLs are in the
+commands above. Running `npm run verify:integration` on its own prints a usage
+message and exits 0, so a scripted `&&` chain would treat an integration suite
+that never executed as a pass.
+
+**`verify-api` asserts no COP key survives in the payload.** The contest runs on
+USD only, with COP held back for phase 2 as a client-native margin. When the
+migration renamed `inventorySavingsCop` to `inventorySavingsUsd`, this script kept
+checking the old name and failed while every visible UI number was correct, which
+is the worst kind of failure: green in the browser, red in the verifier, and
+easy to assume was flakiness. A renamed contract field needs its assertions
+renamed in the same commit.
 
 **Never print a secret value.** Secrets Manager values are read at runtime and
 cached in the module scope. When inspecting, print the length, not the value.

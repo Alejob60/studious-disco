@@ -35,7 +35,7 @@ const kpiKeys = [
   'peakUnits',
   'modelWape',
   'unitsSavedPerDay',
-  'inventorySavingsCop',
+  'inventorySavingsUsd',
 ]
 
 console.log(`\nGET ${apiUrl}/forecast`)
@@ -67,6 +67,13 @@ for (const key of kpiKeys) {
 check('WAPE beats the baseline', data.metrics.wape < data.metrics.baselineWape, `${data.metrics.wape} vs ${data.metrics.baselineWape}`)
 check('confidence bands bracket the point forecast',
   data.forecast.every((p) => p.lower <= p.value && p.value <= p.upper))
+
+// The contest runs on USD only, with COP held back for phase 2 as a
+// client-native margin. Serialised COP keys are a regression: they mean a
+// verifier or a UI consumer is still reading the old contract, and that is
+// invisible in the UI because the formatter would simply drop the value.
+const payload = JSON.stringify(data)
+check('no COP key in the payload', !/Cop|MXN/i.test(payload), (payload.match(/[A-Za-z0-9_]*Cop[A-Za-z0-9_]*/) ?? ['none'])[0])
 
 console.log(`\nPOST ${apiUrl}/chat`)
 const chatResponse = await fetch(`${apiUrl}/chat`, {

@@ -79,12 +79,12 @@ deployed system.**
 
 ```bash
 npm run verify:integration   # 61 checks: live site ↔ live API, deep links, the lab, the ledger, the data diagnostics
-npm run verify:api           # 27 checks: API contract the UI depends on
-npm run test:backend         # 109 unit tests
+npm run verify:api           # 28 checks: API contract the UI depends on
+npm run test:backend         # 147 unit tests
 npm run typecheck            # TypeScript, strict
 ```
 
-Total: **219 automated checks.**
+Total: **236 automated checks.**
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
@@ -310,7 +310,7 @@ Here is the value proposition with the numbers we can actually defend:
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
 | Inventory savings | USD 596/month, derived from that backtest |
-| Pipeline is real | 219 automated checks against the deployed system |
+| Pipeline is real | 236 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
 **Target market:** SMBs and municipal tax offices in Colombia and Latin America.
@@ -419,7 +419,7 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
 - Every sitemap route served as a real page, not a rewrite the CDN ignored
-- 219 automated checks against production
+- 236 automated checks against production
 
 ### 🔜 Phase 2 — Commercial build *(first slice shipped above)*
 - **The control dashboard.** The aggregate ledger above is the first piece; what
@@ -630,7 +630,7 @@ hidden:
    with the arithmetic in the repo and the tests that assert it.
 2. **The agent cannot hallucinate demand.** Statistics own the numbers, the LLM
    owns the language and the actions.
-3. **The claims are machine-checked.** 219 automated checks run against the
+3. **The claims are machine-checked.** 236 automated checks run against the
    deployed system, not against a local build.
 4. **The deployment is reproducible.** One script, one CloudFormation template,
    from clean checkout to live URL.
