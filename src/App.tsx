@@ -69,10 +69,14 @@ function ScrollManager() {
 
     const id = hash.slice(1)
 
-    // Bounded: a hash that matches nothing must not spin forever, and a page that
-    // never settles must not keep scrolling after the user has taken over.
-    let attempts = 0
-    let lastHeight = -1
+    // Bounded by time rather than by "the height stopped changing".
+    //
+    // The first version stopped as soon as two consecutive frames had the same
+    // document height, on the assumption that the page had settled. It had not:
+    // the lazy chart arrives hundreds of milliseconds later, and the height sat
+    // unchanged across the frames that mattered. The jump was abandoned before
+    // the target existed.
+    const deadline = performance.now() + 4000
     let frame = 0
 
     const jump = () => {
@@ -93,15 +97,10 @@ function ScrollManager() {
     }
 
     const tick = () => {
-      attempts += 1
-
       if (jump()) return
-      if (attempts > 40) return
 
-      const height = document.documentElement.scrollHeight
-      if (height === lastHeight) return
+      if (performance.now() > deadline) return
 
-      lastHeight = height
       frame = requestAnimationFrame(tick)
     }
 
