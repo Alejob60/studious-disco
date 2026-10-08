@@ -26,8 +26,10 @@ const es = {
     services: 'Servicios',
     lab: 'Tus datos',
     contact: 'Contacto',
-    legal: 'Legal',
+legal: 'Legal',
     skipToContent: 'Saltar al contenido',
+    open: 'Abrir menú',
+    close: 'Cerrar menú',
   },
   hero: {
     badge: 'Pronóstico agéntico para retail colombiano',
@@ -320,8 +322,10 @@ const en: Dictionary = {
     services: 'Services',
     lab: 'Your data',
     contact: 'Contact',
-    legal: 'Legal',
+legal: 'Legal',
     skipToContent: 'Skip to content',
+    open: 'Open menu',
+    close: 'Close menu',
   },
   hero: {
     badge: 'Agentic forecasting for Colombian retail',

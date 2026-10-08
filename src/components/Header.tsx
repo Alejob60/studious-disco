@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { BrainCircuit, Zap } from 'lucide-react'
+import { BrainCircuit, Zap, Menu, X } from 'lucide-react'
+import { useState } from 'react'
 import { useI18n } from '../i18n/I18nProvider'
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher'
 import { scrollToAnchor } from '../lib/anchors'
@@ -8,9 +9,20 @@ import { scrollToAnchor } from '../lib/anchors'
 export function Header() {
   const { t, locale } = useI18n()
   const reduceMotion = useReducedMotion()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   // Deep links such as /en/terms must not keep the anchor scrolled into view.
   const base = `/${locale}`
+
+  const navLinks = [
+    { href: `${base}#agente`, label: t('nav.agent') },
+    { href: `${base}#pronostico`, label: t('nav.forecast') },
+    { href: `${base}#servicios`, label: t('nav.services') },
+    { href: `${base}#lab`, label: t('nav.lab') },
+    { href: `${base}#contacto`, label: t('nav.contact') },
+  ]
+
+  const closeMobile = () => setMobileOpen(false)
 
   return (
     <motion.header
@@ -42,36 +54,15 @@ export function Header() {
 
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="hidden items-center gap-5 md:flex">
-            <a
-              href={`${base}#agente`}
-              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
-            >
-              {t('nav.agent')}
-            </a>
-            <a
-              href={`${base}#pronostico`}
-              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
-            >
-              {t('nav.forecast')}
-            </a>
-            <a
-              href={`${base}#servicios`}
-              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
-            >
-              {t('nav.services')}
-            </a>
-            <a
-              href={`${base}#lab`}
-              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
-            >
-              {t('nav.lab')}
-            </a>
-            <a
-              href={`${base}#contacto`}
-              className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
-            >
-              {t('nav.contact')}
-            </a>
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="inline-flex min-h-11 items-center py-1 text-sm text-body transition-colors hover:text-gold"
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
 
           <LanguageSwitcher />
@@ -84,7 +75,37 @@ export function Header() {
             <span className="hidden sm:inline">Powered by AWS</span>
             <span className="sm:hidden">AWS</span>
           </motion.span>
+
+          <button
+            type="button"
+            className="md:hidden inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-body hover:text-white transition-colors"
+            aria-label={mobileOpen ? t('nav.close') : t('nav.open')}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(!mobileOpen)}
+          >
+            {mobileOpen ? <X className="size-6" strokeWidth={2} /> : <Menu className="size-6" strokeWidth={2} />}
+          </button>
         </div>
+
+        <motion.div
+          initial={false}
+          animate={{ opacity: mobileOpen ? 1 : 0, height: mobileOpen ? 'auto' : 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="md:hidden overflow-hidden"
+        >
+          <div className="flex flex-col gap-2 py-4 border-t border-line">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="inline-flex min-h-11 items-center px-2 py-1.5 text-sm text-body transition-colors hover:text-gold"
+                onClick={closeMobile}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </motion.div>
       </nav>
     </motion.header>
   )
