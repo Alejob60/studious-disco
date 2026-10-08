@@ -114,7 +114,7 @@ function AgentChatWithExamples({ live }: { live: boolean }) {
     <section id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-2">
         <AgentChat live={live} />
-        <div className="space-y-4">
+        <div className="w-full space-y-4 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
           <div className="rounded-2xl border border-line bg-surface p-5">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
               <span className="grid size-8 place-items-center rounded-lg border border-gold/30 bg-gold/10">
