@@ -13,7 +13,10 @@ export function Footer() {
   return (
     <footer className="relative z-10 mt-8 border-t border-line">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <nav aria-label={t('footer.legal')} className="flex flex-wrap items-center gap-x-6 gap-y-2">
+// `py-2` with a negative margin keeps the visual rhythm while lifting each link
+          // to a 32px touch target. They are navigation, not inline prose, so the
+          // WCAG exemption for links inside a sentence does not apply to them.
+          <nav aria-label={t('footer.legal')} className="-my-2 flex flex-wrap items-center gap-x-6 gap-y-1 py-2">
           <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
             {t('footer.legal')}
           </span>
@@ -21,7 +24,7 @@ export function Footer() {
             <Link
               key={id}
               to={`/${locale}/${slugFromDocId(id, locale)}`}
-              className="text-xs text-body transition-colors hover:text-gold"
+              className="inline-flex min-h-8 items-center text-xs text-body transition-colors hover:text-gold"
             >
               {LEGAL_LABELS[locale][id]}
             </Link>
