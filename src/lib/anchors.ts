@@ -31,7 +31,6 @@ export function scrollToAnchor(event: React.MouseEvent<HTMLElement>) {
   event.preventDefault()
 
   const deadline = performance.now() + RETRY_MS
-  let frame = 0
 
   const jump = () => {
     const maxScroll = document.documentElement.scrollHeight - window.innerHeight
@@ -41,7 +40,7 @@ export function scrollToAnchor(event: React.MouseEvent<HTMLElement>) {
     // viewport top, so the comparison is made against the true offset.
     if (offset > maxScroll + 1) {
       if (performance.now() > deadline) return
-      frame = requestAnimationFrame(jump)
+      requestAnimationFrame(jump)
       return
     }
 
