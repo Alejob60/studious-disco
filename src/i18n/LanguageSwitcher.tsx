@@ -38,10 +38,14 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
             type="button"
             onClick={() => switchTo(entry.locale)}
             aria-current={isActive ? 'true' : undefined}
-            // 44px tall on touch. The pill was 25px, which is below the minimum a
-            // thumb can reliably hit, and the language switcher is one of the
-            // first things a judge on a phone will try.
-            className={`min-h-11 min-w-11 rounded-full px-3 text-[11px] font-semibold transition-colors sm:min-h-0 sm:min-w-0 sm:py-1 ${
+            // 44px tall on touch. The pill was 25px, which is below the minimum a thumb
+            // can reliably hit, and the language switcher is one of the first
+            // things a judge on a phone will try.
+            //
+            // The size does not shrink back at `sm`: a 640px-wide window is still
+            // often a tablet in the hand, and the compact pill is only worth it
+            // where a precise pointer is the norm.
+            className={`min-h-11 min-w-11 rounded-full px-3 text-[11px] font-semibold transition-colors ${
               isActive
                 ? 'bg-gradient-to-r from-gold to-gold-light text-black'
                 : 'text-body hover:text-white'

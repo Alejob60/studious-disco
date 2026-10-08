@@ -30,7 +30,7 @@ export function Header() {
       >
         <a
           href={`${base}#top`}
-          className="-my-2 group flex min-h-11 items-center gap-2.5 py-2 sm:min-h-0 sm:py-0"
+          className="-my-2 group flex min-h-11 items-center gap-2.5 py-2 sm:-my-1 sm:py-1"
         >
           <span className="grid size-9 place-items-center rounded-lg border border-gold/30 bg-gold/10 transition-colors group-hover:bg-gold/20">
             <BrainCircuit className="size-5 text-gold" strokeWidth={1.75} />
