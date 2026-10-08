@@ -245,7 +245,7 @@ export function AgentChat({ live }: { live: boolean }) {
               </p>
             )}
 
-            <div className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-ink px-3 py-2 focus-within:border-gold/40">
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-ink px-3 py-1.5 focus-within:border-gold/40">
               <input
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -254,7 +254,7 @@ export function AgentChat({ live }: { live: boolean }) {
                 }}
                 placeholder={t('chat.placeholder')}
                 aria-label="Instrucción para el agente"
-                className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-white placeholder:text-white/30 focus:outline-none"
+                className="min-h-11 min-w-0 flex-1 bg-transparent px-1 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none"
               />
               <motion.button
                 type="button"
@@ -262,7 +262,7 @@ export function AgentChat({ live }: { live: boolean }) {
                 disabled={!draft.trim() || thinking}
                 whileTap={reduceMotion ? undefined : { scale: 0.92 }}
                 aria-label="Enviar instrucción"
-                className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-gold to-gold-light text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30 sm:size-9"
+                className="grid size-11 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-gold to-gold-light text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <Send className="size-4" strokeWidth={2.5} />
               </motion.button>

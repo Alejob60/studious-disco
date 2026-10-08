@@ -174,7 +174,7 @@ export function DataLab() {
             type="button"
             onClick={() => void submit(csv === '' ? 'empty' : 'edit')}
             disabled={!canSubmit}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-gold to-gold-light px-4 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-gradient-to-r from-gold to-gold-light px-4 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {status === 'loading' ? (
               <Loader2 className="size-4 animate-spin" strokeWidth={2} />
