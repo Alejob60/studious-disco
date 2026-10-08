@@ -111,7 +111,7 @@ function AgentChatWithExamples({ live }: { live: boolean }) {
   const { t, dict } = useI18n()
 
   return (
-    <section id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-2">
         <AgentChat live={live} />
         <div className="w-full space-y-4 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
@@ -157,7 +157,7 @@ function AgentChatWithExamples({ live }: { live: boolean }) {
           </div>
         </div>
       </div>
-    </section>
+    </div>
   )
 }
 
