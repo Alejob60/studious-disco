@@ -24,7 +24,7 @@ const REPORT = (wape, baselineWape) => ({
   model: 'holt-winters-additive',
   period: 7,
   metrics: METRICS(wape, baselineWape),
-  kpis: { peakDay: 'x', peakUnits: 200, weekAheadUnits: 100, unitsSavedPerDay: 3, inventorySavingsCop: 1 },
+  kpis: { peakDay: 'x', peakUnits: 200, weekAheadUnits: 100, unitsSavedPerDay: 3, inventorySavingsUsd: 1 },
   forecast: [{ label: 'a', value: 1 }],
 })
 

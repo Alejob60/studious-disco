@@ -14,7 +14,7 @@ const REPORT = {
   model: 'holt-winters-additive',
   period: 7,
   metrics: { wape: 8.1, baselineWape: 10.4, improvementPct: 22.1, mape: 9.2, modelMaeUnits: 12, baselineMaeUnits: 15, holdoutPoints: 14 },
-  kpis: { peakDay: 'Mié 14', peakUnits: 240, weekAheadUnits: 1300, unitsSavedPerDay: 3, inventorySavingsCop: 1665000 },
+  kpis: { peakDay: 'Mié 14', peakUnits: 240, weekAheadUnits: 1300, unitsSavedPerDay: 3, inventorySavingsUsd: 496 },
   forecast: [{ label: 'Mié 15', value: 200, lower: 180, upper: 220 }],
 }
 

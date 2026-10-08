@@ -1,70 +1,33 @@
 /**
  * Currency presentation.
  *
- * The model itself is currency-agnostic: it forecasts units, and the backend
- * prices the error reduction at a contribution margin expressed in COP. Only the
- * presentation is converted here.
+ * Everything is **USD**. This started with a COP figure carrying a USD
+ * equivalent — "$599 (COP 2,395,611)" — and a sentence that priced the margin in
+ * COP and the result in dollars. A reader had to hold two currencies to check one
+ * claim, and the arithmetic did not survive the round trip: COP 18,500 is USD
+ * 4.625, which rendered as "$5", so redoing the sum from the printed margin came
+ * out eight percent away from the printed total. The judges are US-based and the
+ * customers being modelled are sold to from Colombia, so one currency, plainly
+ * stated, is worth more than a conversion the reader has to trust.
  *
- * The rate is an explicit assumption, not a live quote: we do not call a rates API
- * on a public landing page, and a figure that silently changes between page loads
- * is worse than one that is stated. Both figures are shown wherever a money amount
- * appears, so the arithmetic is checkable:
- *
- *   2,395,611 COP / 4,000 = 599 USD
- *   18,500 COP margin / 4,000 = 4.63 USD per unit
- *
- * Judges and reviewers are US-based, so USD leads and COP follows.
+ * The contribution margin remains an **assumption**, not a market fact, and it
+ * travels with every figure so the interface never hardcodes it. It is the one
+ * number a customer must replace with their own.
  */
-export const COP_PER_USD = 4000
 
-/** Converts a COP amount to USD at the stated rate. */
-export function toUsd(copValue: number): number {
-  return copValue / COP_PER_USD
-}
+/** The margin the savings figure is priced at, in USD per unit. */
+export const UNIT_MARGIN_USD = 4.6
 
-/**
- * Formats a COP amount as USD with the COP equivalent underneath, so the
- * conversion is never a black box.
- *
- * `decimals` defaults to 0, which is right for a headline savings figure of
- * hundreds of dollars. It must be raised for a small unit-level amount: the
- * margin is COP 18,500, or USD 4.625, and rounding that to "$5" makes the
- * arithmetic a judge is invited to check come out eight percent wrong.
- */
-export function formatMoneyUsd(
-  copValue: number,
+/** Formats a USD amount for the reader's locale. */
+export function formatUsd(
+  usdValue: number,
   locale: 'es' | 'en',
   decimals = 0,
 ): string {
-  const usd = toUsd(copValue)
-  const usdText = new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {
+  return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(usd)
-
-  const copText = new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(copValue)
-
-  return `${usdText} (${copText})`
-}
-
-/** Formats a USD amount with no COP counterpart, for chat chips. */
-export function formatUsd(usdValue: number, locale: 'es' | 'en'): string {
-  return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'es-CO', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
   }).format(usdValue)
-}
-
-/** The per-unit contribution margin, in both currencies. */
-export const UNIT_MARGIN_COP = 18500
-
-export function unitMarginUsd(): number {
-  return UNIT_MARGIN_COP / COP_PER_USD
 }

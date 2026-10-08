@@ -31,7 +31,7 @@ export const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 3,
     role: 'agent',
-    text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32 (COP 128.600 a 4.000 COP/USD).',
+    text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32.',
     meta: 'Campaña programada · WhatsApp',
   },
 ]
@@ -147,8 +147,11 @@ export function buildMockForecast(): ForecastResponse {
       peakDay: peak.label,
       peakUnits: peak.value,
       modelWape: 7.77,
-      unitsSavedPerDay: 4.32,
-      inventorySavingsCop: 2395611,
+unitsSavedPerDay: 4.32,
+      // 4.32 units/day x 30 days x USD 4.60 = USD 596, and the margin travels
+      // with it so the fallback data is as checkable as the live one.
+      inventorySavingsUsd: 596,
+      unitMarginUsd: 4.6,
     },
   }
 }

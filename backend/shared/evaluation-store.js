@@ -69,7 +69,7 @@ function buildEvaluationDocument({ history, report, meta = {}, dataQuality = nul
       peakUnits: report.kpis?.peakUnits ?? null,
       weekAheadUnits: report.kpis?.weekAheadUnits ?? null,
       unitsSavedPerDay: report.kpis?.unitsSavedPerDay ?? null,
-      inventorySavingsCop: report.kpis?.inventorySavingsCop ?? null,
+      inventorySavingsUsd: report.kpis?.inventorySavingsUsd ?? null,
     },
 
     // Kept with the measurement so a later accuracy review knows whether the

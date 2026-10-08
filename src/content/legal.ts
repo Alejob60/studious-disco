@@ -151,7 +151,7 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
         heading: '3. Precios y planes de la versión comercial',
         paragraphs: [
           'La versión de demostración publicada con motivo del hackathon es gratuita y no requiere pago. Cualquier tarifa comercial se comunicará expresamente antes de la contratación y quedará sujeta a un contrato separado.',
-          'Los importes se expresan en dólares estadounidenses (USD) cuando así se indique. Cuando se muestre un equivalente en pesos colombianos (COP), se aplicará una tasa de referencia de 4.000 COP por USD, que es un supuesto declarado y no una cotización en tiempo real.',
+          'Los importes de este sitio se expresan en dólares estadounidenses (USD). Las cifras de ahorro derivan del margen de contribución por unidad, que es un supuesto declarado y no una cotización: al digestible por el margen real del cliente.',
         ],
       },
       {
@@ -397,7 +397,7 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
         heading: '3. Pricing',
         paragraphs: [
           'The demo version published for the hackathon is free and requires no payment. Any commercial pricing will be communicated expressly before contracting and will be subject to a separate agreement.',
-          'Amounts are expressed in United States dollars (USD) where stated. Where a Colombian peso (COP) equivalent is shown, a reference rate of 4,000 COP per USD is applied; that rate is a stated assumption, not a live quote.',
+          'All amounts on this site are expressed in United States dollars (USD). Savings figures are derived from a per-unit contribution margin, which is a stated assumption and not a quote: replace it with the customer’s actual margin to make the figures their own.',
         ],
       },
       {

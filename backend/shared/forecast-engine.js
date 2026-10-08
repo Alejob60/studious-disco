@@ -58,6 +58,17 @@ const DEFAULTS = {
 }
 
 /**
+ * The contribution margin assumed per unit, in **USD**.
+ *
+ * A stated input, not a market fact: it is what the savings figure is priced at,
+ * and it is the one number a customer must replace with their own. USD 4.60 is
+ * the round form of the COP 18,500 this started as, and it is a whole number of
+ * cents on purpose — 4.32 units/day x 30 days x 4.60 is exactly the figure the
+ * page shows, so the arithmetic can be checked without a currency conversion.
+ */
+const DEFAULT_UNIT_MARGIN_USD = 4.6
+
+/**
  * Additive Holt-Winters. Requires at least `2 * period` observations.
  *
  * @param {number[]} series historical values, oldest first
@@ -207,8 +218,19 @@ function buildLabels(count, endDate = new Date()) {
  * `unitMargin` converts the model's error reduction into money, which is the
  * only honest way to quote a "savings" figure — it is derived from the
  * backtest, not invented.
+ *
+ * The margin is **USD per unit**. It used to be COP, and the interface showed
+ * both: a "$599" headline with "(COP 2,395,611)" underneath, and a sentence that
+ * priced the margin in COP and the result in dollars. A reader had to hold two
+ * currencies to check one claim, and the arithmetic did not survive the round
+ * trip — COP 18,500 is USD 4.625, which displayed as "$5", and redoing the sum
+ * from $5 came out eight percent away from the $599 printed beside it.
+ *
+ * USD everywhere removes the second problem at the root: a margin of USD 4.60 is
+ * a whole number of cents, so 4.32 units x 30 days x 4.60 is exactly what the
+ * page claims, and a judge can verify it without a currency of their own.
  */
-function buildForecastReport(series, { horizon = 14, unitMargin = 18500, period = 7 } = {}) {
+function buildForecastReport(series, { horizon = 14, unitMargin = DEFAULT_UNIT_MARGIN_USD, period = 7 } = {}) {
   const metrics = backtest(series, { holdout: horizon, period })
   const forecast = holtWinters(series, { horizon, period })
 
@@ -266,7 +288,7 @@ function buildForecastReport(series, { horizon = 14, unitMargin = 18500, period 
       modelMaeUnits: round2(metrics.modelMae),
       baselineMaeUnits: round2(metrics.baselineMae),
     },
-    kpis: {
+kpis: {
       weekAheadUnits: Math.round(weekAhead),
       weekAheadDeltaPct: round2(weekDelta * 100),
       previousWeekUnits: Math.round(lastWeekActual),
@@ -276,7 +298,11 @@ function buildForecastReport(series, { horizon = 14, unitMargin = 18500, period 
       peakUnits: projection[peak.index].value,
       modelWape: round2(metrics.modelWape * 100),
       unitsSavedPerDay: round2(unitsSavedPerDay),
-      inventorySavingsCop: Math.round(unitsSavedPerDay * 30 * unitMargin),
+      // Derived from the backtest, never invented: the model commits fewer wrong
+      // units per day than the baseline, priced at the contribution margin.
+      inventorySavingsUsd: Math.round(unitsSavedPerDay * 30 * unitMargin * 100) / 100,
+      // Carried so the interface can state the assumption without hardcoding it.
+      unitMarginUsd: unitMargin,
     },
   }
 }
@@ -295,4 +321,5 @@ module.exports = {
   backtest,
   buildLabels,
   buildForecastReport,
+  DEFAULT_UNIT_MARGIN_USD,
 }

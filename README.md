@@ -276,12 +276,14 @@ Most demos assert accuracy. We *prove* it: the model is scored against a
 seasonal-naive baseline on a 14-day holdout, and the savings figure is **derived
 from that backtest** rather than invented:
 
-> 4.32 fewer wrong units per day × 30 days × COP 18,500 contribution margin
-> = **COP 2,395,611 / month of inventory savings**
+> 4.32 fewer wrong units per day × 30 days × USD 4.60 contribution margin
+> = **USD 596 / month of inventory savings**
 
 Change the assumption, and the number changes — because it is arithmetic, not
 marketing. The margin is an input in `buildForecastReport()`, documented as an
-assumption to replace with the client's real number.
+assumption to replace with the client's real number. It is USD 4.60 precisely
+because that is a whole number of cents: the sum above is the figure on the page,
+to the dollar, with nothing left to convert.
 
 ### 2. Grounded agency, not generative guessing
 
@@ -307,7 +309,7 @@ Here is the value proposition with the numbers we can actually defend:
 |---|---|
 | The model beats a naive baseline | 7.77% vs 10.17% WAPE, 14-day holdout |
 | Fewer forecasting errors | 13.97 vs 18.29 units/day MAE |
-| Inventory savings | COP 2,395,611/month, derived from that backtest |
+| Inventory savings | USD 596/month, derived from that backtest |
 | Pipeline is real | 219 automated checks against the deployed system |
 | The agent acts, not just answers | Tool calls executed and clamped server-side |
 
@@ -504,18 +506,31 @@ Reproduce and redeploy:
 ./infra/deploy.ps1 -ForecastBucketName <bucket-from-the-output>
 ```
 
-### 💲 Money is shown in USD, with the rate on the page
+### 💲 Money is in USD, and only USD
 
-Reviewers are US-based, so USD leads everywhere. The conversion is not hidden
-behind a magic number: [`src/lib/currency.ts`](src/lib/currency.ts) declares
-**4,000 COP per USD** as a stated assumption, not a live quote, and every money
-figure carries its COP equivalent so the arithmetic is checkable.
+This used to show a COP figure with a USD equivalent — `$599 (COP 2,395,611)` —
+and a sentence that priced the margin in COP and the result in dollars. Two
+currencies for one claim, and the arithmetic did not survive the round trip: COP
+18,500 is USD 4.625, which rendered as **$5**, so redoing the sum from the printed
+margin came out eight percent away from the printed total. On a page whose whole
+argument is that the numbers can be checked, that is the one thing that must not
+be wrong.
 
-The savings figure is derived, not asserted: the backtest shows the model misses
-13.97 units/day against the seasonal baseline's 18.29, so 4.32 fewer wrong units
-per day, times 30 days, times an 18,500 COP contribution margin — **2,395,611 COP,
-which is USD 599**. The backend still emits COP because the model math is
-currency-agnostic and only the presentation converts.
+So there is one currency now, and it is chosen for arithmetic rather than for
+decoration:
+
+```
+4.32 fewer wrong units/day × 30 days × USD 4.60 margin = USD 596
+```
+
+USD 4.60 is a whole number of cents, which is the point — the sum is the figure
+on the page, to the dollar, with no conversion in between. The backend emits USD
+because the model math was always currency-agnostic; only the presentation ever
+converted, and now there is nothing to convert.
+
+The margin remains a **stated assumption** rather than a market fact, it travels
+with the figure in the payload as `unitMarginUsd`, and the interface shows it so
+the reader can substitute their own.
 
 ### 💡 Phase 3 — Month 2–3 *(aspiration)*
 - WhatsApp Business API so `activate_campaign` reaches a real audience
@@ -538,12 +553,12 @@ currency-agnostic and only the presentation converts.
 
 | Tier | Price | Includes |
 |---|---|---|
-| Essential | USD 29 / mo (~COP 116,000) | Forecasting, basic agent |
-| Growth | USD 99 / mo (~COP 396,000) | Advanced analytics, campaign automation |
-| Pro | USD 249 / mo (~COP 996,000) | Custom models, integrations |
+| Essential | USD 29 / mo | Forecasting, basic agent |
+| Growth | USD 99 / mo | Advanced analytics, campaign automation |
+| Pro | USD 249 / mo | Custom models, integrations |
 
-Pricing in COP at the current reference rate of 4,000 COP/USD. The demo tier
-is free and unlimited during the hackathon.
+Priced in USD throughout, like the rest of the product. The demo tier is free and
+unlimited during the hackathon.
 
 ---
 

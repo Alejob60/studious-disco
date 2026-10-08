@@ -42,7 +42,10 @@ export type ForecastKpis = {
   peakUnits: number
   modelWape: number
   unitsSavedPerDay: number
-  inventorySavingsCop: number
+  /** Derived from the backtest and priced at `unitMarginUsd`. */
+  inventorySavingsUsd: number
+  /** The contribution margin used, so the total can be checked without the card. */
+  unitMarginUsd: number
 }
 
 export type ForecastResponse = {

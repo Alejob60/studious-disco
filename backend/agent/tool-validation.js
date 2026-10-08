@@ -9,7 +9,7 @@ const CHANNELS = ['whatsapp', 'email', 'sms']
 
 const LIMITS = {
   audienceSize: { min: 1, max: 500000 },
-  expectedRevenueCop: { min: 0, max: 5000000000 },
+  expectedRevenueUsd: { min: 0, max: 5000000000 },
   newUnits: { min: 1, max: 1000000 },
   skuLength: 64,
   targetDayLength: 32,
@@ -42,8 +42,8 @@ function validateToolInput(name, input) {
     if (source.audienceSize !== undefined && source.audienceSize !== null) {
       action.audienceSize = clampInt(source.audienceSize, LIMITS.audienceSize)
     }
-    if (source.expectedRevenueCop !== undefined && source.expectedRevenueCop !== null) {
-      action.expectedRevenueCop = clampInt(source.expectedRevenueCop, LIMITS.expectedRevenueCop)
+    if (source.expectedRevenueUsd !== undefined && source.expectedRevenueUsd !== null) {
+      action.expectedRevenueUsd = clampInt(source.expectedRevenueUsd, LIMITS.expectedRevenueUsd)
     }
     return action
   }

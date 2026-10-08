@@ -52,9 +52,9 @@ const TOOLS = [
               type: 'integer',
               description: 'Número estimado de contactos.',
             },
-            expectedRevenueCop: {
+expectedRevenueUsd: {
               type: 'integer',
-              description: 'Recaudo adicional estimado en pesos colombianos.',
+              description: 'Recaudo adicional estimado, en dólares.',
             },
           },
           required: ['channel', 'targetDay'],
@@ -216,8 +216,9 @@ function summariseContext(report) {
     peakDay: report.kpis.peakDay,
     peakUnits: report.kpis.peakUnits,
     modelWape: report.kpis.modelWape,
-    unitsSavedPerDay: report.kpis.unitsSavedPerDay,
-    inventorySavingsCop: report.kpis.inventorySavingsCop,
+unitsSavedPerDay: report.kpis.unitsSavedPerDay,
+    inventorySavingsUsd: report.kpis.inventorySavingsUsd,
+    unitMarginUsd: report.kpis.unitMarginUsd,
     model: report.model,
   }
 }
@@ -231,7 +232,7 @@ Reglas:
 - Responde en el idioma que indica IDIOMA_DESEADO, con tono profesional y directo. Máximo 4 frases.
 - Cuando el usuario dé luz verde para activar una campaña, llama a la herramienta activate_campaign con el canal y el día del pico.
 - Si el objetivo es inventario o stock, usa adjust_reorder_point.
-- Cierra con una cifra concreta de impacto (unidades o pesos colombianos).
+- Cierra con una cifra concreta de impacto (unidades o dólares).
 - No uses emojis. No uses markdown.`
 
 /**
@@ -248,18 +249,19 @@ function buildSystemPrompt(report, locale) {
     diaPico: report.kpis.peakDay,
     unidadesDiaPico: report.kpis.peakUnits,
     errorWapePct: report.kpis.modelWape,
-    unidadesAhorradasPorDia: report.kpis.unitsSavedPerDay,
-    ahorroInventarioMensualCop: report.kpis.inventorySavingsCop,
+unidadesAhorradasPorDia: report.kpis.unitsSavedPerDay,
+    ahorroInventarioMensualUsd: report.kpis.inventorySavingsUsd,
+    margenContribucionUsdPorUnidad: report.kpis.unitMarginUsd,
     pronosticoDiario: report.forecast.slice(0, 7).map((point) => ({
       dia: point.label,
       unidades: point.value,
     })),
   }
 
-  const language =
+const language =
     locale === 'en'
-      ? 'English. Use COP amounts and the es-CO number format for currency.'
-      : 'español colombiano.'
+      ? 'English. All monetary amounts are USD.'
+      : 'español colombiano. Todos los montos monetarios están en dólares (USD).'
 
   return `${SYSTEM_PROMPT}
 

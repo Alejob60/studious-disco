@@ -41,24 +41,24 @@ test('optional campaign fields are omitted, never fabricated', () => {
     channel: 'email',
     targetDay: 'Sab 10',
     audienceSize: 1842,
-    expectedRevenueCop: 128600,
+    expectedRevenueUsd: 1286,
   })
   assert.equal(full.audienceSize, 1842)
-  assert.equal(full.expectedRevenueCop, 128600)
+  assert.equal(full.expectedRevenueUsd, 1286)
 })
 
 test('zero is preserved for revenue but not treated as missing', () => {
-  const action = validateToolInput('activate_campaign', { channel: 'sms', expectedRevenueCop: 0 })
-  assert.equal(action.expectedRevenueCop, 0)
+  const action = validateToolInput('activate_campaign', { channel: 'sms', expectedRevenueUsd: 0 })
+  assert.equal(action.expectedRevenueUsd, 0)
 })
 
 test('out-of-range campaign numbers are clamped', () => {
   const action = validateToolInput('activate_campaign', {
     audienceSize: 10 ** 9,
-    expectedRevenueCop: -500,
+    expectedRevenueUsd: -500,
   })
   assert.equal(action.audienceSize, 500000)
-  assert.equal(action.expectedRevenueCop, 0)
+  assert.equal(action.expectedRevenueUsd, 0)
 })
 
 test('adjust_reorder_point clamps units and caps the sku', () => {

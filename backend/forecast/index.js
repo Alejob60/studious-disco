@@ -1,4 +1,4 @@
-const { buildForecastReport, buildSyntheticHistory } = require('../shared/forecast-engine.js')
+const { buildForecastReport, buildSyntheticHistory, DEFAULT_UNIT_MARGIN_USD } = require('../shared/forecast-engine.js')
 const { describeApi } = require('../shared/service-info.js')
 const { TtlCache, FORECAST_TTL_MS } = require('../shared/ttl-cache.js')
 const { hashSeries, isPublishable } = require('../shared/forecast-record.js')
@@ -92,7 +92,9 @@ async function handler(event) {
     const params = event.queryStringParameters ?? {}
 
     const horizon = clamp(Number(params.horizon) || 14, 1, MAX_HORIZON)
-    const unitMargin = Number(params.unitMargin) || 18500
+    // USD contribution margin per unit. `undefined` lets the engine apply its own
+// default, so the number lives in one place rather than two.
+const unitMargin = Number(params.unitMargin) || DEFAULT_UNIT_MARGIN_USD
 
     // `window` trims the history returned to the caller. The model always fits the
     // full series; this only limits the payload, so a chart that draws 21 days

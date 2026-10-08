@@ -5,7 +5,7 @@
  */
 
 import type { ForecastResponse } from './api'
-import { COP_PER_USD, UNIT_MARGIN_COP, formatMoneyUsd, toUsd } from './currency'
+import { UNIT_MARGIN_USD, formatUsd } from './currency'
 import { formatDayLabel, formatNumber } from './format'
 
 /** One x-axis slot. `real` and `predicted` overlap on the boundary day. */
@@ -94,6 +94,11 @@ export function toKpis(data: ForecastResponse, locale: 'es' | 'en'): DisplayKpi[
   const { kpis, metrics } = data
   const num = (value: number) => formatNumber(value, 0, locale)
 
+  // The backend sends the margin it actually priced with. Falling back to the
+  // shared constant keeps the card correct against an older API rather than
+  // showing a total whose own explanation cannot be redone.
+  const marginUsd = kpis.unitMarginUsd ?? UNIT_MARGIN_USD
+
   return [
     {
       id: 'demand',
@@ -113,14 +118,13 @@ export function toKpis(data: ForecastResponse, locale: 'es' | 'en'): DisplayKpi[
       hintVars: {
         modelMae: formatNumber(metrics.modelMaeUnits, 2, locale),
         baselineMae: formatNumber(metrics.baselineMaeUnits, 2, locale),
-        margin: formatMoneyUsd(UNIT_MARGIN_COP, locale, 2),
-        savings: formatMoneyUsd(kpis.inventorySavingsCop, locale),
-        rate: formatNumber(COP_PER_USD, 0, locale),
+        margin: formatUsd(marginUsd, locale, 2),
+        savedPerDay: formatNumber(kpis.unitsSavedPerDay ?? 0, 2, locale),
+        savings: formatUsd(kpis.inventorySavingsUsd ?? 0, locale),
       },
-      // USD leads because the reviewers are US-based; the COP equivalent stays in
-      // the hint so the conversion is auditable rather than asserted.
-      value: toUsd(kpis.inventorySavingsCop),
-      prefix: '$',
+      // Priced in USD, and the hint carries the margin it was priced at, so the
+      // arithmetic on the card can be redone without leaving the page.
+      value: kpis.inventorySavingsUsd ?? 0,
       suffixKey: 'kpis.usd',
       decimals: 0,
     },

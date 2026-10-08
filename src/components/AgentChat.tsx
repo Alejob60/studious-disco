@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Bot, Send, Sparkles, User } from 'lucide-react'
 import type { ChatMessage } from '../data/mock'
 import { isApiConfigured, sendChatMessage, type AgentAction } from '../lib/api'
-import { formatMoneyUsd } from '../lib/currency'
+import { formatUsd } from '../lib/currency'
 import { Reveal } from './ui/Reveal'
 import { useI18n } from '../i18n/I18nProvider'
 
@@ -13,18 +13,20 @@ type Turn = { role: string; content: string }
  * Converts an executed tool call into the metadata chip shown under the bubble,
  * so the agent's actions are visible instead of only claimed in prose.
  */
-function describeAction(action: AgentAction, t: (key: string, vars?: Record<string, string | number>) => string): string {
+function describeAction(
+  action: AgentAction,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  locale: 'es' | 'en',
+): string {
   if (action.name === 'activate_campaign') {
     const channel = String(action.input.channel ?? 'whatsapp')
     const label = channel === 'whatsapp' ? 'WhatsApp' : channel.toUpperCase()
     const audience = action.input.audienceSize
-    const revenueCop = action.input.expectedRevenueCop
+    const revenueUsd = action.input.expectedRevenueUsd
 
     const extras = [
-      audience ? `${Number(audience).toLocaleString('es-CO')} ${t('chat.contacts')}` : null,
-      // The model emits COP; the interface leads with USD for the same reason the
-      // KPI cards do, and keeps COP in the payload for the audit trail.
-      revenueCop ? formatMoneyUsd(Number(revenueCop), 'es') : null,
+      audience ? `${Number(audience).toLocaleString(locale === 'en' ? 'en-US' : 'es-CO')} ${t('chat.contacts')}` : null,
+      revenueUsd ? formatUsd(Number(revenueUsd), locale) : null,
     ].filter(Boolean)
 
     return `${t('chat.actionCampaign')} · ${label}${extras.length ? ` · ${extras.join(' · ')}` : ''}`
@@ -119,7 +121,7 @@ export function AgentChat({ live }: { live: boolean }) {
     try {
       const result = await sendChatMessage(text, history, locale)
       const actionNote = result.actions?.length
-        ? describeAction(result.actions[0], t)
+        ? describeAction(result.actions[0], t, locale)
         : t('chat.online')
 
       setMessages((prev) => [

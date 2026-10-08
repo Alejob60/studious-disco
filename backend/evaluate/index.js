@@ -1,4 +1,4 @@
-const { buildForecastReport } = require('../shared/forecast-engine.js')
+const { buildForecastReport, DEFAULT_UNIT_MARGIN_USD } = require('../shared/forecast-engine.js')
 const { parseSubmission } = require('../shared/evaluate-input.js')
 const { analyseSeries } = require('../shared/series-diagnostics.js')
 const { buildEvaluationDocument, createPersistence } = require('../shared/evaluation-store.js')
@@ -19,7 +19,7 @@ const { buildEvaluationDocument, createPersistence } = require('../shared/evalua
 const SECRET_ID = process.env.MONGO_SECRET_ID ?? ''
 const DB_NAME = process.env.MONGO_DB_NAME ?? ''
 const COLLECTION = process.env.MONGO_COLLECTION ?? ''
-const UNIT_MARGIN_DEFAULT = 18500
+const UNIT_MARGIN_DEFAULT = DEFAULT_UNIT_MARGIN_USD
 const MAX_HORIZON = 30
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' }

@@ -50,7 +50,7 @@ title: 'Indicadores clave',
     demandHint: 'Suma del pronóstico frente a {units} unidades reales de la semana en curso.',
     savingsLabel: 'Ahorro en reposición (30 días)',
     savingsHint:
-      'Backtest: el modelo comete {modelMae} unidades/día de error frente a {baselineMae} del baseline estacional, a un margen de {margin} por unidad. Ahorro {savings} a {rate} COP/USD.',
+      'Backtest: el modelo comete {modelMae} unidades/día de error frente a {baselineMae} del baseline estacional. Eso son {savedPerDay} unidades/día menos, que a un margen de {margin} por unidad y 30 días dan {savings} al mes. El margen es un supuesto declarado: cámbialo por el tuyo.',
     accuracyLabel: 'Precisión del modelo (WAPE)',
     accuracyHint:
       'Validado sobre {holdout} días retenidos. Baseline estacional: {baseline}% → modelo: {model}% ({improvement}% mejor).',
@@ -88,7 +88,7 @@ title: 'Indicadores clave',
     resultSentence:
       'Evaluados {points} días con 14 retenidos. El pico cae el {peak} con {units} unidades.',
     savingsSentence:
-      'A un margen de 18.500 COP por unidad, ese salto de precisión vale {money} al mes.',
+      'A un margen de {margin} por unidad, {savedPerDay} unidades/día menos de error x 30 días son {money} al mes.',
     persisted: 'Evaluación registrada como {id} y conservada {days} días.',
     notPersisted:
       'La métrica es real pero no se pudo guardar: la base de datos no respondió. El cálculo no depende de ella.',
@@ -222,7 +222,7 @@ winner: {
       { role: 'user', text: 'Sí, optimiza el envío para maximizar el recaudo.' },
       {
         role: 'agent',
-        text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32 (COP 128.600 a 4.000 COP/USD).',
+        text: 'Listo. Segmenté 1.842 contactos con alta propensión y programé 3 ventanas de envío (10:00, 16:00 y 20:00) para evitar saturación. Proyección de recaudo adicional: USD 32.',
         meta: 'Campaña programada · WhatsApp',
       },
     ],
@@ -344,7 +344,7 @@ title: 'Key metrics',
     demandHint: 'Sum of the projection against {units} real units for the week in progress.',
     savingsLabel: 'Replenishment savings (30 days)',
     savingsHint:
-      'Backtest: the model misses by {modelMae} units/day against {baselineMae} for the seasonal baseline, at a {margin} margin per unit. Worth {savings} at {rate} COP/USD.',
+      'Backtest: the model misses by {modelMae} units/day against {baselineMae} for the seasonal baseline. {savedPerDay} fewer units/day x 30 days at a {margin} margin per unit. The margin is an assumption: replace it with yours.',
     accuracyLabel: 'Model precision (WAPE)',
     accuracyHint:
       'Measured on {holdout} held-out days. Seasonal baseline: {baseline}% → model: {model}% ({improvement}% better).',
@@ -382,7 +382,7 @@ title: 'Key metrics',
     resultSentence:
       'Evaluated {points} days with 14 held out. The peak lands on {peak} at {units} units.',
     savingsSentence:
-      'At an 18,500 COP contribution margin per unit, that jump in accuracy is worth {money} a month.',
+      'At a {margin} contribution margin per unit, {savedPerDay} units/day of error avoided x 30 days is {money} a month.',
     persisted: 'Evaluation stored as {id} and kept for {days} days.',
     notPersisted:
       'The measurement is real but could not be stored: the database did not answer. The calculation does not depend on it.',
@@ -516,7 +516,7 @@ title: 'Engineering, not AI promises',
       { role: 'user', text: 'Yes, optimise the send to maximise revenue.' },
       {
         role: 'agent',
-        text: 'Done. I segmented 1,842 high-propensity contacts and scheduled 3 send windows (10:00, 16:00 and 20:00) to avoid saturation. Projected extra revenue: USD 32 (COP 128,600 at 4,000 COP/USD).',
+        text: 'Done. I segmented 1,842 high-propensity contacts and scheduled 3 send windows (10:00, 16:00 and 20:00) to avoid saturation. Projected extra revenue: USD 32.',
         meta: 'Campaign scheduled · WhatsApp',
       },
     ],

@@ -20,7 +20,7 @@ const ENDPOINTS = [
     path: '/forecast',
     description:
       'Demand forecast with 95% confidence bands plus backtest metrics. Accepts an optional JSON body { history: number[] } to run on real data instead of the synthetic demo series.',
-    query: { horizon: 'days to project, 1-30 (default 14)', unitMargin: 'COP contribution margin per unit (default 18500)' },
+    query: { horizon: 'days to project, 1-30 (default 14)', unitMargin: 'USD contribution margin per unit (default 4.60)' },
   },
   {
     method: 'POST',

@@ -4,7 +4,7 @@ import { EvaluationHistory } from './EvaluationHistory'
 import { useI18n } from '../i18n/I18nProvider'
 import { trackEvent } from '../lib/analytics'
 import { EvaluationError, evaluateSeries, isApiConfigured, type DataQuality, type EvaluationResponse } from '../lib/api'
-import { formatMoneyUsd } from '../lib/currency'
+import { UNIT_MARGIN_USD, formatUsd } from '../lib/currency'
 import { formatDayLabel, formatNumber } from '../lib/format'
 
 /**
@@ -282,9 +282,13 @@ function Result({ result }: { result: EvaluationResponse }) {
             units: formatNumber(kpis.peakUnits, 0, locale),
           })}
         </p>
-        {kpis.inventorySavingsCop > 0 && (
+        {(kpis.inventorySavingsUsd ?? 0) > 0 && (
           <p className="mt-2 leading-relaxed">
-            {t('lab.savingsSentence', { money: formatMoneyUsd(kpis.inventorySavingsCop, locale) })}
+            {t('lab.savingsSentence', {
+            margin: formatUsd(kpis.unitMarginUsd ?? UNIT_MARGIN_USD, locale, 2),
+            savedPerDay: formatNumber(kpis.unitsSavedPerDay ?? 0, 2, locale),
+            money: formatUsd(kpis.inventorySavingsUsd ?? 0, locale),
+          })}
           </p>
         )}
       </div>
