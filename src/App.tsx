@@ -104,8 +104,8 @@ function Landing() {
 }
 
 /**
- * Split view: agent chat on the left, example questions on the right.
- * Desktop: 50/50. Mobile: stacked (chat first, examples in accordion).
+ * Split view: example questions on the left, agent chat on the right.
+ * Desktop: 50/50. Mobile: stacked (examples first, chat below).
  */
 function AgentChatWithExamples({ live }: { live: boolean }) {
   const { t, dict } = useI18n()
@@ -113,9 +113,6 @@ function AgentChatWithExamples({ live }: { live: boolean }) {
   return (
     <div id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 overflow-x-hidden">
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        <div className="min-w-0">
-          <AgentChat live={live} />
-        </div>
         <div className="w-full min-w-0 space-y-4 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
           <div className="rounded-2xl border border-line bg-surface p-5">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
@@ -157,6 +154,10 @@ function AgentChatWithExamples({ live }: { live: boolean }) {
             <p className="font-medium mb-1">{t('chat.examplesNoteTitle')}</p>
             <p>{t('chat.examplesNote')}</p>
           </div>
+        </div>
+
+        <div className="min-w-0">
+          <AgentChat live={live} />
         </div>
       </div>
     </div>
