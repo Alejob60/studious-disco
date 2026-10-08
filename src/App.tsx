@@ -94,12 +94,70 @@ function Landing() {
           peakDay={peakDayLabel(data, locale)}
           peakUnits={data.kpis.peakUnits}
         />
-    </Suspense>
-<ServicesExplainer />
-    <AgentChat live={source === 'live'} />
+      </Suspense>
+      <ServicesExplainer />
+      <AgentChatWithExamples live={source === 'live'} />
       <DataLab />
       <ContactForm />
-    </>
+</>
+  )
+}
+
+/**
+ * Split view: agent chat on the left, example questions on the right.
+ * Desktop: 50/50. Mobile: stacked (chat first, examples in accordion).
+ */
+function AgentChatWithExamples({ live }: { live: boolean }) {
+  const { t, dict } = useI18n()
+
+  return (
+    <section id="agente" className="relative z-10 mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AgentChat live={live} />
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-line bg-surface p-5">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <span className="grid size-8 place-items-center rounded-lg border border-gold/30 bg-gold/10">
+                <span className="text-gold">?</span>
+              </span>
+              {t('chat.examplesTitle')}
+            </h3>
+            <p className="mt-2 text-sm text-body">{t('chat.examplesSubtitle')}</p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <h4 className="text-sm font-medium text-gold mb-2">{t('chat.examplesSimple')}</h4>
+                <ul className="space-y-2" role="list">
+                  {dict.chat.examples.simple.map((ex, i) => (
+                    <li key={i} className="rounded-lg border border-line bg-surface-2/60 p-3">
+                      <p className="text-sm font-medium text-white">«{ex.q}»</p>
+                      <p className="mt-1 text-xs text-body">{ex.a}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-gold mb-2">{t('chat.examplesAdvanced')}</h4>
+                <ul className="space-y-2" role="list">
+                  {dict.chat.examples.advanced.map((ex, i) => (
+                    <li key={i} className="rounded-lg border border-line bg-surface-2/60 p-3">
+                      <p className="text-sm font-medium text-white">«{ex.q}»</p>
+                      <p className="mt-1 text-xs text-body">{ex.a}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-aws/30 bg-aws-bg/50 p-4 text-sm text-aws">
+            <p className="font-medium mb-1">{t('chat.examplesNoteTitle')}</p>
+            <p>{t('chat.examplesNote')}</p>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 

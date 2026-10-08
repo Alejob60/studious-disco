@@ -228,11 +228,31 @@ winner: {
         meta: 'Campaña programada · WhatsApp',
       },
     ],
-    replies: [
+replies: [
       'Entendido. Ajusté el umbral de reposición al 82% y reservé inventario con el proveedor para cubrir el pico.',
       'Listo. Comparé tres proveedores y el mejor costo por unidad está en el lote del jueves. ¿Autorizas la orden?',
       'Hecho. Dejé la campaña en modo learns y te aviso mañana con el resultado real contra lo proyectado.',
     ],
+    examples: {
+      simple: [
+        { q: '¿Qué día vendré más la próxima semana?', a: 'El agente lee el pico del pronóstico (día, unidades, confianza) y te lo dice en una frase.' },
+        { q: '¿Cuánto voy a vender en total los próximos 14 días?', a: 'Suma la proyección y te da el número con banda de confianza.' },
+        { q: 'Activa la campaña de WhatsApp para el pico', a: 'Segmenta contactos, agenda ventanas de envío y proyecta recaudo. Pide tu confirmación antes de ejecutar.' },
+        { q: 'Sube el punto de reposición al 85%', a: 'Ajusta el reorder point y reserva stock con el proveedor. Te avisa del cambio.' },
+      ],
+      advanced: [
+        { q: 'Compara el costo de tres proveedores para cubrir el pico y dime cuál autorizar', a: 'El agente usa su herramienta de reposición, evalúa lote/fecha/costo y te presenta la mejor opción con proyección de margen.' },
+        { q: 'Si el pico cae en sábado, ¿qué canal uso y a qué hora?', a: 'Analiza propensión por canal (WhatsApp / SMS / email) y agenda 3 ventanas anti-saturación con proyección de recaudo por canal.' },
+        { q: 'Tengo 200 unidades en stock. ¿Cuántos días me duran al ritmo proyectado?', a: 'Divide stock actual entre la demanda diaria media del forecast y te da días de cobertura + alerta si hay quiebre antes del reabastecimiento.' },
+        { q: 'Dame un plan de acción completo: campaña, reposición y cobertura', a: 'Orquesta las dos herramientas (activate_campaign + adjust_reorder_point) en secuencia, resume el impacto económico total y pide una sola confirmación.' },
+      ],
+    },
+    examplesTitle: '¿Qué puedes preguntar?',
+    examplesSubtitle: 'El agente opera sobre el pronóstico real — no inventa números. Aquí tienes ejemplos de lo que entiende:',
+    examplesSimple: 'Preguntas simples',
+    examplesAdvanced: 'Preguntas avanzadas',
+    examplesNoteTitle: 'Nota',
+    examplesNote: 'El agente solo ejecuta tras tu confirmación. Las herramientas son: activar campaña (WhatsApp/SMS/email) y ajustar punto de reposición. Todo queda registrado en el ledger.',
   },
   contact: {
     badge: 'Hablemos',
@@ -524,11 +544,31 @@ title: 'Engineering, not AI promises',
         meta: 'Campaign scheduled · WhatsApp',
       },
     ],
-    replies: [
+replies: [
       'Understood. I raised the reorder threshold to 82% and reserved inventory with the supplier to cover the peak.',
-      'Done. I compared three suppliers and the best unit cost is on Thursday’s batch. Do you authorise the order?',
+      'Done. I compared three suppliers and the best unit cost is on Thursday\'s batch. Do you authorise the order?',
       'All set. I left the campaign in learns mode and will report tomorrow with actuals against the forecast.',
     ],
+    examples: {
+      simple: [
+        { q: 'What day will I sell the most next week?', a: 'The agent reads the forecast peak (day, units, confidence) and tells you in one sentence.' },
+        { q: 'How much will I sell in total over the next 14 days?', a: 'Sums the projection and gives you the number with confidence bands.' },
+        { q: 'Activate the WhatsApp campaign for the peak', a: 'Segments contacts, schedules send windows, projects revenue. Asks for your confirmation before executing.' },
+        { q: 'Raise the reorder point to 85%', a: 'Adjusts the reorder point and reserves stock with the supplier. Notifies you of the change.' },
+      ],
+      advanced: [
+        { q: 'Compare the cost of three suppliers to cover the peak and tell me which to authorise', a: 'The agent uses its reorder tool, evaluates batch/date/cost, and presents the best option with margin projection.' },
+        { q: 'If the peak falls on Saturday, what channel and time should I use?', a: 'Analyzes propensity by channel (WhatsApp / SMS / email) and schedules 3 anti-saturation windows with revenue projection per channel.' },
+        { q: 'I have 200 units in stock. How many days will that last at the projected rate?', a: 'Divides current stock by the forecast\'s average daily demand and gives days of coverage + alert if stockout happens before replenishment.' },
+        { q: 'Give me a full action plan: campaign, replenishment, and coverage', a: 'Orchestrates both tools (activate_campaign + adjust_reorder_point) in sequence, summarizes total economic impact, and asks for a single confirmation.' },
+      ],
+    },
+    examplesTitle: 'What can you ask?',
+    examplesSubtitle: 'The agent operates on the real forecast — it does not invent numbers. Here are examples of what it understands:',
+    examplesSimple: 'Simple questions',
+    examplesAdvanced: 'Advanced questions',
+    examplesNoteTitle: 'Note',
+    examplesNote: 'The agent only executes after your confirmation. Tools are: activate campaign (WhatsApp/SMS/email) and adjust reorder point. Everything is logged in the ledger.',
   },
   contact: {
     badge: 'Get in touch',
