@@ -1,90 +1,73 @@
 # 🎯 Atelier Predict
 
-## ⚡ One-Liner
+## ⚡ One-Liner (The 15-Second Pitch)
+**Atelier Predict stops retail stockouts and wasted marketing spend by combining a mathematically proven demand forecast with an AI agent that executes real business actions (like launching WhatsApp campaigns or adjusting reorders) — all with human approval.**
 
-**Atelier Predict forecasts retail demand 14 days ahead with a statistical model that proves it beats a naive baseline (7.77% vs 10.17% WAPE on held-out data), then hands that forecast to a Claude agent on Amazon Bedrock that turns predictions into campaigns and reorder actions — with a human approving.**
+> **Technical Proof:** Our statistical model beats a naive baseline by 23.6% (7.77% vs 10.17% WAPE on held-out data). The AI agent (Claude on Amazon Bedrock) is strictly grounded in these numbers, preventing hallucinations and ensuring every action is based on verified data.
 
 ---
 
 ## 🎬 Live Demo
-
 ### **[https://main.d28ukybtuih8pa.amplifyapp.com](https://main.d28ukybtuih8pa.amplifyapp.com)**
-
-> **Note for AWS judges:** this is not a mockup. The page calls a live serverless API
-> (`https://il67zr1fr5.execute-api.us-east-1.amazonaws.com`) that runs a Holt-Winters
-> forecast and invokes Claude on Bedrock on every request. A badge in the hero tells you
-> which mode you are in — **"Live data · AWS"** or **"Demo mode"** — so you always know
-> whether you are looking at real computation.
->
-> Available in **Spanish** (`/es`) and **English** (`/en`).
+> **Note for judges:** This is not a mockup. The page calls a live serverless API that runs a Holt-Winters forecast and invokes Claude on Bedrock on every request. A badge in the hero tells you which mode you are in — **"Live data · AWS"** or **"Demo mode"**. Available in **Spanish** (`/es`) and **English** (`/en`).
 
 ---
 
 ## 🩺 The Problem
+Retailers and public entities run marketing and inventory on instinct, leading to:
+- ❌ **Spray-and-pray messaging:** Sending 30,000 messages hoping 5% respond, wasting budget.
+- ❌ **No demand forecast:** Stocking out or overstocking based on gut feeling.
+- ❌ **Unverifiable AI claims:** Black-box tools where nobody can prove accuracy before trusting them.
+- ❌ **Dashboards that lie:** Numbers hardcoded for demos, not computed from real data.
 
-Retailers and public entities run marketing on instinct:
-
-- ❌ **Spray-and-pray messaging** — 30,000 messages hoping 5% respond
-- ❌ **No demand forecast** — stock out or overstock based on gut feeling
-- ❌ **Unverifiable AI claims** — nobody can prove a model's accuracy before trusting it
-- ❌ **Dashboards that lie** — numbers that were typed into a constant, not computed
-
-**Result:** overspent budgets, stockouts on the exact days that mattered, and AI
-projects nobody trusts because the accuracy claim has no evidence behind it.
+**Result:** Overspent budgets, stockouts on critical days, and AI projects that fail because they lack transparency.
 
 ---
 
-## 💡 What We Built
+## 💡 The Solution & Key Differentiators
+Unlike generic chatbots or black-box forecasting tools, Atelier Predict is built on three pillars:
 
-### 📊 1. A forecast that has to prove itself
+1. **Grounded Agency (No Hallucinations):** The statistical layer owns the numbers; the LLM owns the language and actions. The agent *cannot* invent demand. It reads the verified forecast and suggests actions (e.g., *"I detect a demand spike for Saturday. Should I activate the WhatsApp campaign?"*).
+2. **Auditable Accuracy:** We don't just claim accuracy; we prove it. The model is scored against a seasonal-naive baseline on a 14-day holdout, and the savings figure is derived directly from that backtest.
+3. **Supply-Chain Honesty:** The system actively inspects input data for stock-outs, closures, or promotions. If the data is dirty, it flags it as "not trustworthy" rather than silently producing a confidently wrong forecast.
 
-Additive **Holt-Winters** triple exponential smoothing with weekly seasonality
-(`m=7`), fitted over 90 days of history, projecting 14 days ahead with 95%
-confidence bands.
+---
 
-The differentiator is not the model — it is that **we score it against a baseline
-on data it never saw:**
+## 📊 What We Built (With Receipts)
 
-| Metric (14-day holdout) | Our model | Seasonal-naive baseline | Improvement |
+### 1. A Forecast That Proves Its Worth
+Additive **Holt-Winters** triple exponential smoothing with weekly seasonality (`m=7`), fitted over 90 days of history, projecting 14 days ahead. 
+
+| Metric (14-day holdout) | Our Model | Seasonal-Naive Baseline | Improvement |
 |---|---|---|---|
 | **WAPE** | **7.77 %** | 10.17 % | **23.6 % better** |
 | **MAE** | **13.97 units/day** | 18.29 units/day | **4.32 fewer wrong units/day** |
 
-Every one of those numbers is produced by the deployed code, reproducible from a
-seed, and asserted in `backend/test/forecast-engine.test.js`.
+*Every number is produced by the deployed code, reproducible from a seed, and asserted in `backend/test/forecast-engine.test.js`.*
 
-### 🤖 2. An agent that reasons over numbers it did not produce
+### 2. An Agent That Acts, Not Just Answers
+Claude Sonnet via Amazon Bedrock, called with the Converse API and **tool use** (`activate_campaign`, `adjust_reorder_point`). 
+- Tool arguments are **clamped server-side**. If the model hallucinates a channel, it falls back to `whatsapp`. 
+- It **stops and asks for confirmation** rather than firing campaigns autonomously.
 
-Claude Sonnet 4.5 via Amazon Bedrock, called with the Converse API and **tool use**
-(`activate_campaign`, `adjust_reorder_point`).
-
-The forecast is injected into the system prompt as **ground truth**. The model
-therefore *cannot* invent demand figures — it narrates and acts on statistics it
-did not calculate. It also **stops and asks for confirmation** rather than firing
-campaigns on its own:
-
-> **Agent:** "I detect a demand spike for Saturday. Should I activate the WhatsApp
-> campaign for that day?"
-> **You:** "Yes, optimise the send to maximise revenue."
-> **Agent:** *(calls `activate_campaign`)* → "Campaign activated · WhatsApp"
-
-Tool arguments are **clamped before they leave the Lambda** — model output is
-untrusted input. If the model hallucinates a channel, it falls back to `whatsapp`;
-if it omits an audience, the field is dropped rather than fabricated as `1`.
-
-### ✅ 3. Engineering you can audit in one command
-
-The part we care about most: **the claims above are machine-checked against the
-deployed system.**
-
+### 3. Engineering You Can Audit in One Command
+We care most about verifiable claims. The system is machine-checked against the deployed environment:
 ```bash
-npm run verify:integration   # 61 checks: live site ↔ live API, deep links, the lab, the ledger, the data diagnostics
+npm run verify:integration   # 61 checks: live site ↔ live API, deep links, diagnostics
 npm run verify:api           # 28 checks: API contract the UI depends on
 npm run test:backend         # 147 unit tests
 npm run typecheck            # TypeScript, strict
-```
 
-Total: **236 automated checks.**
+Total: 236 automated checks.
+4. Try It on Your Own Data
+The page accepts the visitor's own CSV data. The same engine scores it, showing the WAPE against the baseline. If the data contains disruptions (e.g., stock-outs), the system explicitly flags the forecast as "not trustworthy" and explains why, demonstrating commercial-grade honesty. All evaluations are stored in a MongoDB Atlas cluster (90-day TTL) to build a verifiable accuracy ledger over time.
+🚀 Business Validation & Sustainability
+This is not a theoretical concept. Atelier Predict is a validated, working prototype with tested business logic, designed for a clear market:
+Target Market: SMBs and municipal tax offices in Colombia and Latin America.
+Business Model: B2B SaaS (Planned tiers: Essential $29/mo, Growth $99/mo, Pro $249/mo).
+Value Proposition: Direct ROI through inventory savings (e.g., ~$596/month derived from the 4.32 units/day MAE improvement × margin) and reduced marketing waste.
+Traction: We have conversations in progress and will publish named case studies only when signed.
+
 
 ### 🌍 4. Bilingual and legible to both humans and agents
 
