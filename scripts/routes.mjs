@@ -43,9 +43,9 @@ function listBody(source, name) {
   return match[1]
 }
 
-/** Reads `key: 'value'` pairs out of a TypeScript object body. */
+/** Reads `key: 'value'` pairs — handles plain keys AND quoted hyphenated keys like 'ai-policy'. */
 function stringMap(body, what) {
-  const entries = [...body.matchAll(/(\w+):\s*'([^']*)'/g)]
+  const entries = [...body.matchAll(/['"]?([\w-]+)['"]?:\s*'([^']*)'/g)]
   if (entries.length === 0) fail(`no entries parsed out of ${what}.`)
   return Object.fromEntries(entries.map(([, key, value]) => [key, value]))
 }
@@ -93,7 +93,9 @@ const slugFor = (docId, locale) => {
 
 /** Titles are nested one level deeper (`privacy: { es: '…', en: '…' }`). */
 function titleFor(docId, locale) {
-  const block = legalTitles.match(new RegExp(`${docId}:\\s*\\{([^}]*)\\}`))
+  // Escape hyphens for use in RegExp (e.g. 'ai-policy' -> 'ai\-policy')
+  const escapedId = docId.replace(/-/g, '\\-')
+  const block = legalTitles.match(new RegExp(`['"]?${escapedId}['"]?:\\s*\\{([^}]*)\\}`))
   if (!block) fail(`no title block for legal document "${docId}".`)
   const title = block[1].match(new RegExp(`${locale}:\\s*'([^']*)'`))
   if (!title) fail(`no ${locale} title for legal document "${docId}".`)
@@ -107,7 +109,7 @@ for (const docId of ORDER) {
 }
 
 export const SITE_URL = (
-  process.env.SITE_URL ?? 'https://main.d28ukybtuih8pa.amplifyapp.com'
+  process.env.SITE_URL ?? 'https://demo.colombiatic.com.co'
 ).replace(/\/$/, '')
 
 /**
