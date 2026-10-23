@@ -10,6 +10,8 @@ export const LEGAL_TITLES: Record<LegalDocId, Record<'es' | 'en', string>> = {
   terms: { es: 'Términos y condiciones', en: 'Terms and Conditions' },
   cookies: { es: 'Política de cookies', en: 'Cookie Policy' },
   refunds: { es: 'Política de reembolsos', en: 'Refund Policy' },
+  'ai-policy': { es: 'Política de IA y analítica', en: 'AI & Analytics Policy' },
+  dpa: { es: 'Acuerdo de tratamiento de datos', en: 'Data Processing Agreement' },
 }
 
-export const LEGAL_ORDER: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds']
+export const LEGAL_ORDER: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds', 'ai-policy', 'dpa']
