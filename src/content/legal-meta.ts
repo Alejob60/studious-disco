@@ -5,7 +5,7 @@
  * can link to a policy without pulling every policy body into the main bundle.
  */
 
-export type LegalDocId = 'privacy' | 'terms' | 'cookies' | 'refunds'
+export type LegalDocId = 'privacy' | 'terms' | 'cookies' | 'refunds' | 'ai-policy' | 'dpa'
 
 /** Slugs in the URL, kept stable across locales for easy linking. */
 export const LEGAL_SLUG: Record<LegalDocId, string> = {
@@ -13,6 +13,8 @@ export const LEGAL_SLUG: Record<LegalDocId, string> = {
   terms: 'terminos',
   cookies: 'cookies',
   refunds: 'reembolsos',
+  'ai-policy': 'politica-ia',
+  dpa: 'acuerdo-datos',
 }
 
 export const LEGAL_SLUG_EN: Record<LegalDocId, string> = {
@@ -20,6 +22,8 @@ export const LEGAL_SLUG_EN: Record<LegalDocId, string> = {
   terms: 'terms',
   cookies: 'cookies',
   refunds: 'refunds',
+  'ai-policy': 'ai-policy',
+  dpa: 'data-agreement',
 }
 
 export const LEGAL_LABELS: Record<'es' | 'en', Record<LegalDocId, string>> = {
@@ -28,16 +32,20 @@ export const LEGAL_LABELS: Record<'es' | 'en', Record<LegalDocId, string>> = {
     terms: 'Términos y condiciones',
     cookies: 'Política de cookies',
     refunds: 'Política de reembolsos',
+    'ai-policy': 'Política de IA y analítica',
+    dpa: 'Acuerdo de datos',
   },
   en: {
     privacy: 'Privacy policy',
     terms: 'Terms and conditions',
     cookies: 'Cookie policy',
     refunds: 'Refund policy',
+    'ai-policy': 'AI & Analytics Policy',
+    dpa: 'Data Agreement',
   },
 }
 
-export const LEGAL_ORDER: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds']
+export const LEGAL_ORDER: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds', 'ai-policy', 'dpa']
 
 export function docIdFromSlug(slug: string | undefined, locale: 'es' | 'en'): LegalDocId | null {
   if (!slug) return null

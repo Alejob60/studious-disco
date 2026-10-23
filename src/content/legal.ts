@@ -33,10 +33,10 @@ export type LegalDoc = {
   sections: LegalSection[]
 }
 
-const UPDATED_ES = '1 de octubre de 2026'
-const UPDATED_EN = 'October 1, 2026'
-const EFFECTIVE_ES = '1 de octubre de 2026'
-const EFFECTIVE_EN = 'October 1, 2026'
+const UPDATED_ES = '23 de octubre de 2026'
+const UPDATED_EN = 'October 23, 2026'
+const EFFECTIVE_ES = '23 de octubre de 2026'
+const EFFECTIVE_EN = 'October 23, 2026'
 
 export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
   privacy: {
@@ -52,7 +52,7 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
       {
         heading: '1. Responsable y contacto',
         paragraphs: [
-          'El responsable del tratamiento es ColombiaTIC Ingeniería SAS. Para cualquier consulta sobre esta política o sobre el ejercicio de derechos puedes escribir a enterprise@colombiatic.com.co. Responderemos dentro de los plazos legales vigentes, y en todo caso dentro de los diez (10) días hábiles siguientes a la recepción de la solicitud.',
+          'El responsable del tratamiento es ColombiaTIC Ingeniería SAS. Para cualquier consulta sobre esta política o sobre el ejercicio de derechos puedes escribir a dairagarzon@colombiatic.com.co. Responderemos dentro de los plazos legales vigentes, y en todo caso dentro de los diez (10) días hábiles siguientes a la recepción de la solicitud.',
         ],
       },
       {
@@ -85,9 +85,11 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
           'No vendemos, rents ni cedemos tus datos personales. Podemos usar los siguientes terceros, que actúan como encargados del tratamiento y solo por cuenta propia:',
         ],
         list: [
-          'Amazon Web Services (AWS) — alojamiento e infraestructura en la nube.',
+          'Amazon Web Services (AWS) — alojamiento e infraestructura en la nube, región us-east-1.',
+          'Amazon Bedrock (servicio de AWS) — procesamiento de modelos de IA generativa (Claude Sonnet 4.5 de Anthropic). Los mensajes de chat se envían a Bedrock para inferencia y no se almacenan en servidores propios.',
+          'MongoDB Atlas (MongoDB Inc.) — almacenamiento de resultados de evaluación con TTL de 90 días, en la nube pública (región us-east-1).',
           'Resend — envío de correos electrónicos transaccionales.',
-          'Proveedores de fuentes tipográficas en línea (Google Fonts) — para mostrar la tipografía del sitio.',
+          'Google Fonts — fuentes tipográficas en línea (puede revelar la dirección IP al proveedor).',
           'Registro de la Autoridad para la Protección de Datos Personales de Colombia, cuando corresponda conforme a la ley.',
         ],
       },
@@ -101,7 +103,7 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
         heading: '6. Tus derechos como titular',
         paragraphs: [
           'Como titular de los datos tienes derecho a conocer, actualizar, rectificar, suprimir (derecho de acceso y supresión de los datos), revocar el consentimiento, solicitar la portabilidad y presentar una queja ante la Autoridad para la Protección de Datos Personales de Colombia.',
-          'Para ejercerlos, escribe a enterprise@colombiatic.com.co indicando tu nombre, la identidad del dato y la actuación que solicitas. Respondemos dentro de los plazos legales vigentes.',
+          'Para ejercerlos, escribe a dairagarzon@colombiatic.com.co indicando tu nombre, la identidad del dato y la actuación que solicitas. Respondemos dentro de los plazos legales vigentes.',
         ],
       },
       {
@@ -211,7 +213,8 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
       {
         heading: '2. Qué NO utilizamos',
         paragraphs: [
-          'No utilizamos cookies publicitarias, cookies de seguimiento entre sitios, píxeles de redes sociales ni perfiles de comportamiento. No integramos herramientas de analítica de terceros.',
+          'No utilizamos cookies publicitarias ni píxeles de redes sociales. No compartimos datos de comportamiento con terceros para fines de publicidad.',
+          'Google Analytics 4 (GA4) puede activarse mediante la variable de entorno VITE_GA4_ID. Cuando está activo, carga el script de Google de forma diferida solo tras obtener tu consentimiento explícito y registra eventos de navegación, interacciones con el agente y uso del laboratorio de datos. GA4 establece sus propias cookies de primera parte (_ga, _ga_XXXXXXXX). Si no se ha configurado esa variable, no se carga ningún script de analítica.',
         ],
       },
       {
@@ -242,7 +245,7 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
     updated: UPDATED_ES,
     effective: EFFECTIVE_ES,
     intro: [
-      'La versión de Atelier Predict publicada con motivo del hackathon AWS Zero to Shipped 2026 es una demostración gratuita y no genera cobros. Esta política aplica a eventuales contrataciones de planes comerciales o pilotos pagados.',
+      'La versión de demostración de Atelier Predict es gratuita y no genera cobros. Esta política aplica a contrataciones de planes comerciales o pilotos pagados.',
     ],
     sections: [
       {
@@ -261,7 +264,7 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
         heading: '3. Derecho de retraction',
         paragraphs: [
           'En ventas a distancia, puedes retractarte de la compra dentro de los cinco (5) días hábiles siguientes a la entrega o a la celebración del contrato, sin necesidad de justificación, conforme al artículo 2 del Decreto 1074 de 2015 y el Estatuto del Consumidor.',
-          'En ese caso devolvemos el 100 % de lo pagado. Para ejercer este derecho escribe a enterprise@colombiatic.com.co indicando la fecha de compra y el medio de pago.',
+          'En ese caso devolvemos el 100 % de lo pagado. Para ejercer este derecho escribe a dairagarzon@colombiatic.com.co indicando la fecha de compra y el medio de pago.',
         ],
       },
       {
@@ -284,6 +287,165 @@ export const LEGAL_DOCS_ES: Record<LegalDocId, LegalDoc> = {
       },
     ],
   },
+
+  'ai-policy': {
+    id: 'ai-policy',
+    title: 'Política de Uso de Inteligencia Artificial y Analítica de Datos',
+    updated: UPDATED_ES,
+    effective: EFFECTIVE_ES,
+    intro: [
+      'Atelier Predict utiliza modelos de inteligencia artificial (IA) y herramientas de analítica para ofrecer sus funcionalidades de pronóstico de demanda y asistencia agéntica. Esta política describe qué modelos utilizamos, cómo procesan tus datos, qué garantías ofrecemos y qué derechos te asisten.',
+      'La IA en este servicio tiene un rol de asistencia y recomendación. Ninguna acción se ejecuta de forma automática sin validación humana, en cumplimiento del principio de supervisión humana en sistemas de IA.',
+    ],
+    sections: [
+      {
+        heading: '1. Modelos y proveedores de IA',
+        paragraphs: [
+          'Utilizamos los siguientes modelos y servicios de IA:',
+        ],
+        list: [
+          'Amazon Bedrock (AWS, región us-east-1) — plataforma de modelos fundacionales gestionada. Actúa como procesador de datos bajo el DPA de AWS.',
+          'Anthropic Claude Sonnet 4.5 (accedido a través de Amazon Bedrock) — modelo de lenguaje grande (LLM) utilizado para el asistente de chat agéntico.',
+          'Amazon Titan Embeddings v2 (Amazon) — modelo de embeddings utilizado internamente para indexación semántica del catálogo de productos.',
+          'Holt-Winters Additive (modelo estadístico propio) — algoritmo determinista de suavizado exponencial triple para el pronóstico de demanda. No usa aprendizaje automático y sus parámetros son reproducibles desde una semilla fija.',
+        ],
+      },
+      {
+        heading: '2. Qué datos procesa la IA',
+        paragraphs: [
+          'Los modelos de IA generativa (Claude Sonnet) reciben exclusivamente:',
+        ],
+        list: [
+          'El contenido de tus mensajes en el chat del agente, junto con el contexto estadístico del pronóstico vigente.',
+          'No reciben datos personales de tus clientes finales. Si incluyes datos personales en los mensajes del chat, te recomendamos no hacerlo, ya que no podemos garantizar que Bedrock los trate con las mismas garantías que los datos gestionados por nosotros directamente.',
+          'Las series de demanda que subes al laboratorio de datos son vectores de números sin identificadores personales. El motor estadístico las procesa localmente en el servidor Lambda; el modelo de IA generativa no las recibe a menos que las pegues expresamente en el chat.',
+        ],
+      },
+      {
+        heading: '3. Retención de datos por parte de los modelos de IA',
+        paragraphs: [
+          'Amazon Bedrock no almacena los inputs ni los outputs de las inferencias una vez completada la solicitud, conforme a su política de privacidad y al DPA de AWS.',
+          'Nosotros no registramos el contenido de las conversaciones del chat en ninguna base de datos propia. Sí registramos eventos analíticos anónimos (ver Política de Cookies) cuando el usuario ha dado su consentimiento.',
+        ],
+      },
+      {
+        heading: '4. Toma de decisiones automatizada',
+        paragraphs: [
+          'El sistema no toma decisiones con efectos jurídicos ni significativos de manera automatizada. El asistente propone acciones (activar campaña, ajustar punto de reposición) que requieren la confirmación explícita de un operador humano antes de ejecutarse.',
+          'Los pronósticos son estimaciones estadísticas, no garantías. La responsabilidad de las decisiones operativas recae siempre en la persona que las adopta.',
+        ],
+      },
+      {
+        heading: '5. Analítica del comportamiento del usuario',
+        paragraphs: [
+          'Cuando el usuario acepta las cookies analíticas, registramos eventos de uso mediante Google Analytics 4 (GA4): páginas visitadas, idioma seleccionado, interacciones con el agente y evaluaciones del laboratorio de datos. Estos datos son pseudónimos y se procesan conforme a la Política de Cookies.',
+          'Los datos analíticos no se usan para entrenar modelos de IA ni se ceden a terceros distintos de Google (bajo sus Condiciones de Tratamiento de Datos para GA4).',
+        ],
+      },
+      {
+        heading: '6. Sesgos y limitaciones',
+        paragraphs: [
+          'Los modelos de IA pueden producir respuestas incorrectas, incompletas o sesgadas. El pronóstico estadístico tiene un error medio (WAPE) del 7,77 % medido sobre una serie sintética: tu serie real puede comportarse de forma diferente.',
+          'No recomendamos tomar decisiones de inventario de alto impacto basadas exclusivamente en las salidas del sistema sin validar con datos propios.',
+        ],
+      },
+      {
+        heading: '7. Derechos y contacto',
+        paragraphs: [
+          'Si tienes preguntas sobre cómo la IA procesa tus datos, escribe a dairagarzon@colombiatic.com.co. Para ejercer derechos relativos a datos personales, consulta la Política de Privacidad.',
+        ],
+      },
+    ],
+  },
+
+  dpa: {
+    id: 'dpa',
+    title: 'Acuerdo de Tratamiento de Datos (DPA)',
+    updated: UPDATED_ES,
+    effective: EFFECTIVE_ES,
+    intro: [
+      'Este Acuerdo de Tratamiento de Datos ("DPA") regula el tratamiento de datos que ColombiaTIC Ingeniería SAS realiza como encargado del tratamiento en nombre del cliente ("Responsable") cuando este proporciona series de datos de demanda u otros datos empresariales a través del servicio Atelier Predict.',
+      'Este DPA se incorpora por referencia a los Términos y Condiciones del servicio y prevalece en caso de conflicto en lo que concierne al tratamiento de datos personales.',
+    ],
+    sections: [
+      {
+        heading: '1. Partes y roles',
+        paragraphs: [
+          'ColombiaTIC Ingeniería SAS actúa como Encargado del Tratamiento respecto de los datos que el Cliente (Responsable) introduce en el servicio. El Cliente es responsable de garantizar que tiene una base legal adecuada para compartir dichos datos con ColombiaTIC.',
+        ],
+      },
+      {
+        heading: '2. Datos tratados',
+        paragraphs: [
+          'Los datos tratados bajo este DPA son, con carácter general, series temporales de cantidades (unidades vendidas, demanda histórica) sin identificadores personales directos. Si el Cliente incluye datos personales en las series o en los mensajes del chat, este DPA aplica también a esos datos.',
+        ],
+        list: [
+          'Series de demanda: vectores de números con marcas temporales.',
+          'Resultados de evaluación: métricas estadísticas derivadas de las series anteriores, almacenadas en MongoDB Atlas con un TTL de 90 días.',
+          'Datos del formulario de contacto: nombre, correo, empresa y cargo (cubiertos también por la Política de Privacidad).',
+        ],
+      },
+      {
+        heading: '3. Finalidades del tratamiento',
+        paragraphs: [
+          'ColombiaTIC trata los datos exclusivamente para:',
+        ],
+        list: [
+          'Generar pronósticos de demanda y métricas de error sobre las series del Cliente.',
+          'Almacenar los resultados de evaluación para mostrarlos al Cliente durante el período de retención.',
+          'Mejorar la calidad del servicio de forma agregada y anonimizada, nunca a nivel individual.',
+        ],
+      },
+      {
+        heading: '4. Subencargados',
+        paragraphs: [
+          'ColombiaTIC utiliza los siguientes subencargados para prestar el servicio:',
+        ],
+        list: [
+          'Amazon Web Services (AWS), región us-east-1 — cómputo serverless (Lambda) y almacenamiento temporal.',
+          'MongoDB Atlas (MongoDB Inc.) — almacenamiento persistente de resultados de evaluación, 90 días TTL.',
+          'Amazon Bedrock (AWS) — inferencia de modelos de IA generativa para el chat agéntico.',
+        ],
+      },
+      {
+        heading: '5. Medidas de seguridad',
+        paragraphs: [
+          'ColombiaTIC aplica las siguientes medidas técnicas y organizativas:',
+        ],
+        list: [
+          'Comunicaciones cifradas con TLS 1.2 o superior en todos los extremos.',
+          'Secretos de acceso a servicios de terceros almacenados en AWS Secrets Manager, nunca en código ni en variables de entorno planas.',
+          'Acceso a la infraestructura limitado por IAM con principio de mínimo privilegio.',
+          'Logs de acceso a nivel de API Gateway para detección de anomalías.',
+          'Eliminación automática de evaluaciones a los 90 días mediante TTL de MongoDB.',
+        ],
+      },
+      {
+        heading: '6. Notificación de brechas',
+        paragraphs: [
+          'En caso de una brecha de seguridad que afecte a datos del Cliente, ColombiaTIC notificará al Cliente dentro de las 72 horas siguientes al conocimiento de la brecha, con la información disponible en ese momento.',
+        ],
+      },
+      {
+        heading: '7. Derechos de auditoría',
+        paragraphs: [
+          'El Cliente puede solicitar información sobre las medidas de seguridad y los subencargados escribiendo a dairagarzon@colombiatic.com.co. ColombiaTIC responderá dentro de los treinta (30) días calendario siguientes.',
+        ],
+      },
+      {
+        heading: '8. Supresión de datos',
+        paragraphs: [
+          'A la finalización del contrato o a petición del Cliente, ColombiaTIC eliminará o anonimizará los datos del Cliente en un plazo máximo de treinta (30) días, salvo obligación legal de conservación.',
+        ],
+      },
+      {
+        heading: '9. Ley aplicable',
+        paragraphs: [
+          'Este DPA se rige por la Ley 1581 de 2012 y sus decretos reglamentarios, y por el Reglamento (UE) 2016/679 (RGPD) en lo que aplique a datos de titulares en la Unión Europea.',
+        ],
+      },
+    ],
+  },
 }
 
 export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
@@ -300,7 +462,7 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
       {
         heading: '1. Controller and contact',
         paragraphs: [
-          'The data controller is ColombiaTIC Ingeniería SAS. For any question about this policy or to exercise your rights, write to enterprise@colombiatic.com.co. We reply within the statutory deadlines and in any case within ten (10) business days of receiving your request.',
+          'The data controller is ColombiaTIC Ingeniería SAS. For any question about this policy or to exercise your rights, write to dairagarzon@colombiatic.com.co. We reply within the statutory deadlines and in any case within ten (10) business days of receiving your request.',
         ],
       },
       {
@@ -331,9 +493,11 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
           'We do not sell, rent or transfer your personal data. We may rely on the following processors, acting on our behalf and only for that purpose:',
         ],
         list: [
-          'Amazon Web Services (AWS) — hosting and cloud infrastructure.',
+          'Amazon Web Services (AWS) — hosting and cloud infrastructure, region us-east-1.',
+          'Amazon Bedrock (an AWS service) — generative AI model processing (Anthropic Claude Sonnet 4.5). Chat messages are sent to Bedrock for inference and are not retained on our servers.',
+          'MongoDB Atlas (MongoDB Inc.) — evaluation result storage with a 90-day TTL, on public cloud (region us-east-1).',
           'Resend — transactional email delivery.',
-          'Online font providers (Google Fonts) — to render the site typography.',
+          'Google Fonts — online font service (may reveal IP address to provider).',
           'The Colombian Data Protection Authority register, where applicable by law.',
         ],
       },
@@ -347,7 +511,7 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
         heading: '6. Your rights as data subject',
         paragraphs: [
           'As a data subject you have the right to know, update, rectify, delete (right of erasure), withdraw consent, request portability and file a complaint before the Colombian Data Protection Authority.',
-          'To exercise these rights write to enterprise@colombiatic.com.co stating your name, the data concerned and the action requested. We reply within the statutory deadlines.',
+          'To exercise these rights write to dairagarzon@colombiatic.com.co stating your name, the data concerned and the action requested. We reply within the statutory deadlines.',
         ],
       },
       {
@@ -457,7 +621,8 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
       {
         heading: '2. What we do not use',
         paragraphs: [
-          'We do not use advertising cookies, cross-site tracking cookies, social pixels or behavioural profiling. We do not integrate third-party analytics tools.',
+          'We do not use advertising cookies or social-media pixels. We do not share behavioural data with third parties for advertising purposes.',
+          'Google Analytics 4 (GA4) may be activated via the VITE_GA4_ID environment variable. When active, it loads the Google script lazily, only after your explicit consent, and records navigation events, agent interactions and data-lab usage. GA4 sets its own first-party cookies (_ga, _ga_XXXXXXXX). If that variable is not configured, no analytics script is loaded.',
         ],
       },
       {
@@ -488,7 +653,7 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
     updated: UPDATED_EN,
     effective: EFFECTIVE_EN,
     intro: [
-      'The version of Atelier Predict published for the AWS Zero to Shipped 2026 hackathon is a free demo and generates no charges. This policy applies to any commercial plan or paid pilot.',
+      'The Atelier Predict demo version is free and generates no charges. This policy applies to any commercial plan or paid pilot.',
     ],
     sections: [
       {
@@ -507,7 +672,7 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
         heading: '3. Right of withdrawal',
         paragraphs: [
           'For distance sales you may withdraw from the purchase within five (5) business days of delivery or of signing the agreement, without giving a reason, under article 2 of Decree 1074 of 2015 and the Colombian Consumer Statute.',
-          'In that case we refund 100% of what was paid. To exercise this right write to enterprise@colombiatic.com.co stating the purchase date and payment method.',
+          'In that case we refund 100% of what was paid. To exercise this right write to dairagarzon@colombiatic.com.co stating the purchase date and payment method.',
         ],
       },
       {
@@ -526,6 +691,165 @@ export const LEGAL_DOCS_EN: Record<LegalDocId, LegalDoc> = {
         heading: '6. Excluded cases',
         paragraphs: [
           'Amounts corresponding to services actually performed, contracts accepted with full knowledge of the conditions, and amounts arising from changes in the AWS pricing policies that are outside our reasonable control are not refundable.',
+        ],
+      },
+    ],
+  },
+
+  'ai-policy': {
+    id: 'ai-policy',
+    title: 'AI & Data Analytics Policy',
+    updated: UPDATED_EN,
+    effective: EFFECTIVE_EN,
+    intro: [
+      'Atelier Predict uses artificial intelligence (AI) models and analytics tools to deliver its demand-forecasting and agentic-assistance features. This policy describes which models we use, how they process your data, what guarantees we offer, and what rights you have.',
+      'AI in this service plays an assistive and recommendation role. No action is executed automatically without human validation, in line with the human-oversight principle for AI systems.',
+    ],
+    sections: [
+      {
+        heading: '1. AI models and providers',
+        paragraphs: [
+          'We use the following AI models and services:',
+        ],
+        list: [
+          'Amazon Bedrock (AWS, region us-east-1) — managed foundation model platform. Acts as a data processor under the AWS DPA.',
+          'Anthropic Claude Sonnet 4.5 (accessed via Amazon Bedrock) — large language model (LLM) used for the agentic chat assistant.',
+          'Amazon Titan Embeddings v2 (Amazon) — embeddings model used internally for semantic indexing of the product catalogue.',
+          'Holt-Winters Additive (proprietary statistical model) — deterministic triple exponential smoothing algorithm for demand forecasting. Does not use machine learning and its parameters are reproducible from a fixed seed.',
+        ],
+      },
+      {
+        heading: '2. What data AI processes',
+        paragraphs: [
+          'Generative AI models (Claude Sonnet) receive exclusively:',
+        ],
+        list: [
+          'The content of your messages in the agent chat, together with the statistical context of the current forecast.',
+          'They do not receive personal data about your end customers. If you include personal data in chat messages, we advise against it, as we cannot guarantee Bedrock will treat it with the same safeguards we apply to data we manage directly.',
+          'Demand series you upload to the data lab are vectors of numbers without personal identifiers. The statistical engine processes them locally in the Lambda server; the generative AI model does not receive them unless you explicitly paste them into the chat.',
+        ],
+      },
+      {
+        heading: '3. Data retention by AI models',
+        paragraphs: [
+          'Amazon Bedrock does not store inference inputs or outputs after the request completes, in accordance with its privacy policy and the AWS DPA.',
+          'We do not log the content of chat conversations in any of our own databases. We do log anonymous analytics events (see Cookie Policy) when the user has given consent.',
+        ],
+      },
+      {
+        heading: '4. Automated decision-making',
+        paragraphs: [
+          'The system does not make decisions with legal or significant effects in an automated way. The assistant proposes actions (activate campaign, adjust reorder point) that require explicit confirmation from a human operator before executing.',
+          'Forecasts are statistical estimates, not guarantees. The responsibility for operational decisions always rests with the person who makes them.',
+        ],
+      },
+      {
+        heading: '5. User behaviour analytics',
+        paragraphs: [
+          'When the user accepts analytics cookies, we record usage events via Google Analytics 4 (GA4): pages visited, language selected, agent interactions and data-lab evaluations. This data is pseudonymous and processed in accordance with the Cookie Policy.',
+          'Analytics data is not used to train AI models and is not shared with third parties other than Google (under its Data Processing Terms for GA4).',
+        ],
+      },
+      {
+        heading: '6. Biases and limitations',
+        paragraphs: [
+          'AI models may produce incorrect, incomplete or biased responses. The statistical forecast has a mean error (WAPE) of 7.77% measured on a synthetic series: your real series may behave differently.',
+          'We do not recommend making high-impact inventory decisions based solely on system outputs without validating against your own data.',
+        ],
+      },
+      {
+        heading: '7. Rights and contact',
+        paragraphs: [
+          'If you have questions about how AI processes your data, write to dairagarzon@colombiatic.com.co. To exercise rights relating to personal data, see the Privacy Policy.',
+        ],
+      },
+    ],
+  },
+
+  dpa: {
+    id: 'dpa',
+    title: 'Data Processing Agreement (DPA)',
+    updated: UPDATED_EN,
+    effective: EFFECTIVE_EN,
+    intro: [
+      'This Data Processing Agreement ("DPA") governs the processing that ColombiaTIC Ingeniería SAS carries out as a data processor on behalf of the customer ("Controller") when the customer provides demand series or other business data through the Atelier Predict service.',
+      'This DPA is incorporated by reference into the Terms and Conditions and prevails in the event of conflict as regards personal data processing.',
+    ],
+    sections: [
+      {
+        heading: '1. Parties and roles',
+        paragraphs: [
+          'ColombiaTIC Ingeniería SAS acts as Data Processor in respect of the data that the Customer (Controller) introduces into the service. The Customer is responsible for ensuring it has an adequate legal basis to share such data with ColombiaTIC.',
+        ],
+      },
+      {
+        heading: '2. Data processed',
+        paragraphs: [
+          'Data processed under this DPA consists generally of time series of quantities (units sold, historical demand) without direct personal identifiers. If the Customer includes personal data in series or chat messages, this DPA applies to that data as well.',
+        ],
+        list: [
+          'Demand series: vectors of numbers with timestamps.',
+          'Evaluation results: statistical metrics derived from the series above, stored in MongoDB Atlas with a 90-day TTL.',
+          'Contact form data: name, email, company and role (also covered by the Privacy Policy).',
+        ],
+      },
+      {
+        heading: '3. Processing purposes',
+        paragraphs: [
+          'ColombiaTIC processes data solely to:',
+        ],
+        list: [
+          'Generate demand forecasts and error metrics for the Customer\'s series.',
+          'Store evaluation results to display to the Customer during the retention period.',
+          'Improve service quality in an aggregated, anonymised way, never at the individual level.',
+        ],
+      },
+      {
+        heading: '4. Sub-processors',
+        paragraphs: [
+          'ColombiaTIC uses the following sub-processors to deliver the service:',
+        ],
+        list: [
+          'Amazon Web Services (AWS), region us-east-1 — serverless compute (Lambda) and temporary storage.',
+          'MongoDB Atlas (MongoDB Inc.) — persistent storage of evaluation results, 90-day TTL.',
+          'Amazon Bedrock (AWS) — generative AI model inference for the agentic chat.',
+        ],
+      },
+      {
+        heading: '5. Security measures',
+        paragraphs: [
+          'ColombiaTIC applies the following technical and organisational measures:',
+        ],
+        list: [
+          'TLS 1.2 or higher encrypted communications at all endpoints.',
+          'Third-party service access secrets stored in AWS Secrets Manager, never in code or plain environment variables.',
+          'Infrastructure access limited by IAM with least-privilege principle.',
+          'API Gateway access logs for anomaly detection.',
+          'Automatic deletion of evaluations after 90 days via MongoDB TTL.',
+        ],
+      },
+      {
+        heading: '6. Breach notification',
+        paragraphs: [
+          'In the event of a security breach affecting Customer data, ColombiaTIC will notify the Customer within 72 hours of becoming aware of the breach, with information available at that time.',
+        ],
+      },
+      {
+        heading: '7. Audit rights',
+        paragraphs: [
+          'The Customer may request information about security measures and sub-processors by writing to dairagarzon@colombiatic.com.co. ColombiaTIC will reply within thirty (30) calendar days.',
+        ],
+      },
+      {
+        heading: '8. Data deletion',
+        paragraphs: [
+          'On termination of the contract or at the Customer\'s request, ColombiaTIC will delete or anonymise the Customer\'s data within a maximum of thirty (30) days, unless a legal retention obligation applies.',
+        ],
+      },
+      {
+        heading: '9. Governing law',
+        paragraphs: [
+          'This DPA is governed by Colombian Law 1581 of 2012 and its implementing regulations, and by Regulation (EU) 2016/679 (GDPR) to the extent applicable to data subjects in the European Union.',
         ],
       },
     ],

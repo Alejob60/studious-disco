@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '../i18n/I18nProvider'
 import { LEGAL_LABELS, slugFromDocId, type LegalDocId } from '../content/legal-meta'
 
-const LEGAL_LINKS: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds']
+const LEGAL_LINKS: LegalDocId[] = ['privacy', 'terms', 'cookies', 'refunds', 'ai-policy', 'dpa']
 
 /** Closing bar with the legal index and the hackathon attribution. */
 export function Footer() {

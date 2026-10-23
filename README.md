@@ -8,7 +8,7 @@
 ---
 
 ## 🎬 Live Demo
-### **[https://main.d28ukybtuih8pa.amplifyapp.com](https://main.d28ukybtuih8pa.amplifyapp.com)**
+### **[https://demo.colombiatic.com.co](https://demo.colombiatic.com.co)**
 > **Note for judges:** This is not a mockup. The page calls a live serverless API that runs a Holt-Winters forecast and invokes Claude on Bedrock on every request. A badge in the hero tells you which mode you are in — **"Live data · AWS"** or **"Demo mode"**. Available in **Spanish** (`/es`) and **English** (`/en`).
 
 ---
@@ -206,7 +206,7 @@ Browser (Amplify Hosting, static SPA · 142 kB gzip initial)
                            IAM: secretsmanager:GetSecretValue on ONE secret
                                     │
                                     ▼
-                    enterprise@colombiatic.com.co  (tagged: atelier-predict-hackathon)
+                    dairagarzon@colombiatic.com.co  (tagged: atelier-predict-hackathon)
 
 Deployed, in a separate stack so the champion path stands alone:
 
@@ -361,8 +361,8 @@ data — the UI tells you rather than hiding it.
 git clone https://github.com/Alejob60/studious-disco && cd studious-disco
 npm install
 npm run verify:integration \
-  https://main.d28ukybtuih8pa.amplifyapp.com \
-  https://il67zr1fr5.execute-api.us-east-1.amazonaws.com
+  https://demo.colombiatic.com.co \
+  https://predict.colombiatic.com.co
 ```
 61 checks against production, from your own machine.
 
@@ -399,7 +399,7 @@ jurisdictional policies in two languages, and a site an external agent can read.
 - Claude agent on Bedrock with validated tool use — **deployed**
 - **Real-data lab**: download a CSV, edit it, have the same engine score it, and
   keep the evaluation in MongoDB Atlas with a 90-day TTL
-- Lead capture to `enterprise@colombiatic.com.co`, tagged by origin
+- Lead capture to `dairagarzon@colombiatic.com.co`, tagged by origin
 - Four legal policies in two languages, cookie consent, agent-readable surface
 - Every sitemap route served as a real page, not a rewrite the CDN ignored
 - 236 automated checks against production
@@ -576,10 +576,11 @@ unlimited during the hackathon.
 
 ## 📞 Contact
 
-- **Enterprise:** enterprise@colombiatic.com.co
+- **Enterprise:** dairagarzon@colombiatic.com.co
 - **Founder:** alejob600@gmail.com
 - **GitHub:** [github.com/Alejob60/studious-disco](https://github.com/Alejob60/studious-disco)
-- **Live app:** [main.d28ukybtuih8pa.amplifyapp.com](https://main.d28ukybtuih8pa.amplifyapp.com)
+- **Live app:** [demo.colombiatic.com.co](https://demo.colombiatic.com.co)
+- **API:** [predict.colombiatic.com.co](https://predict.colombiatic.com.co)
 
 ---
 
